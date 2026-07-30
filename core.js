@@ -264,6 +264,15 @@ function createFrettedInstrument(config) {
       if (!container) continue;
       container.innerHTML = '';
       for (let fret = 0; fret < fretCount; fret++) {
+        // wrapAfter is purely visual (a row with more frets than comfortably
+        // fit on one line, e.g. erhu's 20) — splits the DISPLAY into extra
+        // lines without touching rowId/fret numbering, so sample keys
+        // (`${rowId}-${fret}`) and the keyboard map are completely unaffected.
+        if (row.wrapAfter && fret > 0 && fret % row.wrapAfter === 0) {
+          const wrapBreak = document.createElement('div');
+          wrapBreak.className = 'fret-row-break';
+          container.appendChild(wrapBreak);
+        }
         const midi = midiFor(row.id, fret);
         const div = document.createElement('div');
         div.className = 'fret' + (isPentatonic(midi) ? ' scale-note' : '');
@@ -424,26 +433,48 @@ function createPadInstrument(config) {
   for (const pad of pads) if (!pad.break && !pad.caption) KEY_TO_PAD[pad.key] = pad;
 
   // { break: true } entries force a new row (a full-width spacer). {
-  // caption: '...' } entries are a small full-width text label — same
-  // full-width trick doubles as a forced line break, so a caption placed
-  // right after a group of pads reads as "labeling the group above it"
-  // without needing separate positioning logic. Neither is a real pad.
+  // caption: '...' } entries label whichever run of real pads came right
+  // before them — those pads get wrapped together with the caption into a
+  // .pad-group (pads on top, small text below), and the GROUP is what
+  // joins the normal flex-wrap flow. That keeps captioned pads sitting
+  // inline with their neighbors in the same rows as before, instead of
+  // the caption's own width forcing a break after every single group.
   function render() {
     const container = cardEl.querySelector('.pads');
     if (!container) return;
     container.innerHTML = '';
+    let pending = []; // pad divs since the last caption/break, awaiting a caption or a flush
+
+    function flush(captionText) {
+      if (pending.length === 0) return;
+      if (captionText) {
+        const group = document.createElement('div');
+        group.className = 'pad-group';
+        const row = document.createElement('div');
+        row.className = 'pad-group-row';
+        pending.forEach((div) => row.appendChild(div));
+        const label = document.createElement('div');
+        label.className = 'pad-caption';
+        label.textContent = captionText;
+        group.appendChild(row);
+        group.appendChild(label);
+        container.appendChild(group);
+      } else {
+        pending.forEach((div) => container.appendChild(div));
+      }
+      pending = [];
+    }
+
     for (const pad of pads) {
       if (pad.break) {
+        flush();
         const spacer = document.createElement('div');
         spacer.className = 'pad-row-break';
         container.appendChild(spacer);
         continue;
       }
       if (pad.caption) {
-        const label = document.createElement('div');
-        label.className = 'pad-caption';
-        label.textContent = pad.caption;
-        container.appendChild(label);
+        flush(pad.caption);
         continue;
       }
       const div = document.createElement('div');
@@ -458,8 +489,9 @@ function createPadInstrument(config) {
       div.addEventListener('pointerup', () => releasePad(noteId));
       div.addEventListener('pointerleave', () => releasePad(noteId));
       div.addEventListener('pointercancel', () => releasePad(noteId));
-      container.appendChild(div);
+      pending.push(div);
     }
+    flush();
   }
 
   // Momentary flash — remote plays only (see the fretted instrument's

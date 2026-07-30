@@ -1,12 +1,12 @@
 // 板鼓-ish "bangu" card — a small classic Chinese percussion kit: dagu
 // (bass drum) strokes, a snare, 5 pitched temple blocks, real bangu
 // clapper-drum hits, naobo (clashing cymbals), a gong, and a rattle drum.
-// Naobo/rattle are long natural decays (or, for the rattle, a continuous
-// shake roll) — hold/release lets you choke them early or let them ring
-// out fully. Gong is oneShot instead: a struck gong just keeps ringing on
-// its own regardless of how you damp it (unlike a drum head, there's no
-// natural "let go to shorten it" the way hold/release implies), same
-// reasoning as the dagu strokes above.
+// Naobo-soft/rattle are long natural decays (or, for the rattle, a
+// continuous shake roll) — hold/release lets you choke them early or let
+// them ring out fully. Dagu strokes, naobo-crash, and gong are oneShot
+// instead: struck/crashed, they just keep ringing on their own regardless
+// of how you damp it (unlike a drum head, there's no natural "let go to
+// shorten it" the way hold/release implies).
 (function () {
   const sampleLoader = createSampleLoader('samples/bangu');
 
@@ -18,7 +18,7 @@
   // holds a lot more than just a "bangu" now).
   const pads = [
     { id: 'rattle', key: 't', label: 'Rattle', sampleKey: 'rattle' },
-    { caption: 'rattle drum (pellets on a skin head)' },
+    { caption: 'rattle drum' },
     { id: 'snare', key: '4', label: 'Snare', sampleKey: 'snare' },
     { caption: 'snare drum' },
     { id: 'bangu-clap-sharp', key: 'q', label: 'Bangu (sharp)', sampleKey: 'bangu-clap-sharp' },
@@ -35,7 +35,7 @@
     { id: 'dagu-edge', key: '2', label: 'Dagu edge', sampleKey: 'dagu-edge', oneShot: true },
     { id: 'dagu-rimshot', key: '3', label: 'Rimshot', sampleKey: 'dagu-rimshot' },
     { caption: 'dagu drum' },
-    { id: 'naobo-crash', key: 'w', label: 'Naobo crash', sampleKey: 'naobo-crash' },
+    { id: 'naobo-crash', key: 'w', label: 'Naobo crash', sampleKey: 'naobo-crash', oneShot: true },
     { id: 'naobo-soft', key: 'e', label: 'Naobo soft', sampleKey: 'naobo-soft' },
     { caption: 'naobo cymbals' },
     { id: 'gong', key: 'r', label: 'Gong', sampleKey: 'gong', oneShot: true },

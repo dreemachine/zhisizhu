@@ -27,6 +27,10 @@
     label: note,
     sampleKey: { default: note, vibrato: `${note}-vibrato` },
   }));
+  // force exactly 2 even rows of 7 (matches the "always 2 rows, filled"
+  // layout preference) rather than leaving the row count to however many
+  // 80px pads happen to fit at whatever width the card renders at.
+  pads.splice(7, 0, { break: true });
 
   const dizi = createPadInstrument({
     id: 'dizi',
