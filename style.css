@@ -1,0 +1,390 @@
+:root {
+  color-scheme: dark;
+  /* Palette sampled directly from the dragon background art: deep navy sky,
+     dusty mauve-purple scales, warm coral/rose mane-and-claw highlights.
+     This stays the yueqin card's look (and the page-wide default). */
+  --bg: #10111c;
+  --wood: #453b4a;
+  --wood-light: #5d506d;
+  --string: #ecdfe3;
+  --accent: #d49c8e;
+  --lit: #f2c3b0;
+  --card-bg: rgba(69, 59, 74, 0.82);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    linear-gradient(rgba(8, 9, 15, 0.55), rgba(8, 9, 15, 0.72)),
+    url('dragon-bg.jpg') center / cover no-repeat fixed;
+  color: var(--string);
+  font-family: system-ui, sans-serif;
+  padding: 2rem 1rem 3rem;
+}
+
+/* Legibility fix: the header text used to sit directly on the busy
+   background image with nothing behind it (unlike the instrument panel,
+   which already had a translucent backdrop) — hard to read against a
+   detailed painting. Same translucent plum treatment as the cards. */
+.page-header {
+  max-width: 1900px;
+  margin: 0 auto 1.5rem;
+  text-align: center;
+  background: rgba(69, 59, 74, 0.55);
+  backdrop-filter: blur(4px);
+  border-radius: 16px;
+  padding: 1.5rem;
+}
+
+h1 {
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.5rem;
+}
+
+h1 span {
+  font-size: 0.5em;
+  color: var(--accent);
+  display: block;
+}
+
+.hint {
+  color: #b3a3ab;
+  margin: 0;
+}
+
+.relay-controls {
+  max-width: 1900px;
+  margin: 0 auto 1.5rem;
+  background: rgba(69, 59, 74, 0.55);
+  backdrop-filter: blur(4px);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+/* Sized for a real 27" monitor (commonly 1920 or 2560 CSS px wide) — a
+   strict 4-across row would cram each card to ~440px, uncomfortably
+   shrinking a 12-fret row compared to a single instrument's old ~900px.
+   2x2 instead keeps each card close to its original comfortable width,
+   restacking to one column below ~1300px ("adaptively restack into a
+   stack" — one media query, no JS breakpoint logic needed). */
+.instrument-grid {
+  max-width: 1900px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+@media (max-width: 1300px) {
+  .instrument-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.instrument-card {
+  position: relative;
+  background: var(--card-bg);
+  backdrop-filter: blur(6px);
+  border-radius: 24px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  text-align: center;
+  outline: 2px solid transparent;
+  transition: outline-color 0.15s, box-shadow 0.15s;
+}
+
+/* Click-to-focus indicator — only the focused card's keyboard mapping is
+   active (see core.js), so this needs to be unambiguous at a glance. */
+.instrument-card.focused {
+  outline-color: var(--accent);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45), 0 0 24px 4px rgba(212, 156, 142, 0.35);
+}
+
+.instrument-card h2 {
+  margin: 0 0 1rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+}
+
+.instrument-card h2 span {
+  font-size: 0.55em;
+  color: var(--accent);
+  display: block;
+}
+
+.cricket-card {
+  max-width: 900px;
+  margin: 1.5rem auto 0;
+}
+
+.lute {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.string-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.string-label {
+  width: 5rem;
+  flex-shrink: 0;
+  font-size: 0.8rem;
+  color: var(--accent);
+  text-align: right;
+}
+
+.frets {
+  flex: 1;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.fret {
+  flex: 1;
+  padding: 0.65rem 0.2rem;
+  background: var(--wood-light);
+  border: 1px solid #00000040;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  transition: background 0.06s, transform 0.06s;
+}
+
+.fret .key {
+  display: block;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.fret .note {
+  display: block;
+  font-size: 0.6rem;
+  color: #cbb8c2;
+}
+
+.fret.scale-note {
+  border-color: var(--accent);
+}
+
+.fret.scale-note .note {
+  color: var(--accent);
+}
+
+.fret.lit {
+  background: var(--lit);
+  color: #241b22;
+  transform: scale(0.95);
+}
+
+/* Tutorial mode's "play this next" hint bar — a small steady glowing bar
+   floating just above the fret, positioned via JS coordinates rather than
+   attached to the fret itself (a fret-attached pseudo-element perturbed
+   the whole row's flex layout — see project memory). */
+.tutorial-hint-bar {
+  position: absolute;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px 2px var(--accent), 0 0 16px 4px var(--accent);
+  pointer-events: none;
+  display: none;
+}
+
+.tutorial-hint-bar.visible {
+  display: block;
+}
+
+/* Pad grid (erhu, bangu, cricket board) — discrete one-shot triggers, no
+   pitch/octave concept, so no per-row structure needed like .frets. */
+.pads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.pad-row-break {
+  flex-basis: 100%;
+  height: 0;
+}
+
+.pad {
+  flex: 1 1 80px;
+  min-width: 80px;
+  padding: 0.85rem 0.4rem;
+  background: var(--wood-light);
+  border: 1px solid #00000040;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+  transition: background 0.06s, transform 0.06s;
+}
+
+.pad .key {
+  display: block;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.pad .note {
+  display: block;
+  font-size: 0.65rem;
+  color: #cbb8c2;
+}
+
+.pad.lit {
+  background: var(--lit);
+  color: #241b22;
+  transform: scale(0.95);
+}
+
+.songs {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.song-btn {
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--string);
+  background: var(--wood-light);
+  border: 1px solid #00000040;
+  border-radius: 8px;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.song-btn:hover {
+  border-color: var(--accent);
+}
+
+.song-btn.playing,
+.song-btn.active {
+  background: var(--accent);
+  color: #241b22;
+}
+
+.song-btn.stop-btn {
+  background: transparent;
+  color: #b3a3ab;
+}
+
+.tone-controls {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brightness-label {
+  font-size: 0.75rem;
+  color: #b3a3ab;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.brightness-label input[type='range'] {
+  accent-color: var(--accent);
+}
+
+.brightness-label input[type='text'] {
+  font-family: inherit;
+  font-size: 0.8rem;
+  color: var(--string);
+  background: var(--wood);
+  border: 1px solid #00000040;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  width: 14rem;
+  max-width: 40vw;
+}
+
+/* Collapsible "how it compares" section — <details>/<summary>'s native
+   disclosure triangle marker *is* the "kick out triangle thing" asked
+   for, no custom JS toggle needed, and it's keyboard-accessible for free. */
+.reference-clip {
+  margin-top: 1.25rem;
+  text-align: left;
+}
+
+.reference-clip summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.82rem;
+}
+
+.reference-clip[open] summary {
+  margin-bottom: 0.6rem;
+}
+
+.reference-clip .hint {
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.reference-clip video {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 280px;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* --- per-character palettes ---
+   yueqin keeps the original mauve/rose (dree's own). The other three are
+   sampled from different regions of the same background art, one per
+   party character: bangu/fighter from the dragon's golden mane and the
+   temple rooftops (warm fire-amber); dizi/rogue from the deep storm-cloud
+   shadow at top-left (a dark blood-violet, shifted off literal red so it
+   doesn't fight with bangu's fire scheme); erhu from the misty jade
+   mountain foliage (bard/sorcerer nature-green) — the cricket board is
+   the same character as erhu, so it shares that scheme rather than
+   getting a 4th one of its own. */
+#card-bangu {
+  --wood: #4a3225;
+  --wood-light: #7a4a2a;
+  --string: #f5e0c8;
+  --accent: #e8813a;
+  --lit: #ffb457;
+  --card-bg: rgba(74, 50, 37, 0.82);
+}
+
+#card-dizi {
+  --wood: #241f33;
+  --wood-light: #3d2f52;
+  --string: #ded4e8;
+  --accent: #a34a6b;
+  --lit: #d97a94;
+  --card-bg: rgba(36, 31, 51, 0.82);
+}
+
+#card-erhu,
+#card-cricket {
+  --wood: #1f3a34;
+  --wood-light: #2f5c50;
+  --string: #d8ece3;
+  --accent: #4fae8f;
+  --lit: #7fd9b8;
+  --card-bg: rgba(31, 58, 52, 0.82);
+}

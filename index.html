@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>織丝竹</title>
+  <link rel="stylesheet" href="style.css?v=1" />
+</head>
+<body>
+  <div class="page-header">
+    <h1>織丝竹 <span>party instruments</span></h1>
+    <p class="hint">Click a card to focus it, then play with your keyboard — or just click/tap the frets directly. Everyone connected to the same relay hears everyone else play, live.</p>
+  </div>
+
+  <div class="tone-controls relay-controls">
+    <label class="brightness-label">
+      relay url
+      <input type="text" id="relay-url" placeholder="wss://your-relay.example.com" />
+    </label>
+    <button class="song-btn" id="relay-connect">connect</button>
+    <span class="brightness-label" id="relay-status">relay: not connected</span>
+  </div>
+
+  <div class="instrument-grid">
+
+    <div class="instrument-card" id="card-yueqin">
+      <h2>月琴 <span>yue-qin</span></h2>
+      <div class="lute">
+        <div class="string-row">
+          <div class="string-label">D4 string</div>
+          <div class="frets" data-row="high"></div>
+        </div>
+        <div class="string-row">
+          <div class="string-label">G3 string</div>
+          <div class="frets" data-row="low"></div>
+        </div>
+        <div class="tutorial-hint-bar"></div>
+      </div>
+      <div class="songs"></div>
+      <div class="tone-controls">
+        <button class="song-btn plate-toggle">plates: harmonic</button>
+        <label class="brightness-label">
+          brightness
+          <input type="range" class="brightness" min="0" max="100" value="0" />
+        </label>
+        <label class="brightness-label">
+          plate amount
+          <input type="range" class="plate-amount" min="0" max="150" value="100" />
+        </label>
+      </div>
+      <div class="tone-controls">
+        <button class="song-btn octave-down">▼ octave</button>
+        <span class="brightness-label octave-readout">octave: 0</span>
+        <button class="song-btn octave-up">▲ octave</button>
+        <button class="song-btn tremolo-toggle">tremolo: off</button>
+        <button class="song-btn tutorial-toggle">tutorial: off</button>
+      </div>
+      <details class="reference-clip">
+        <summary>How it compares</summary>
+        <p class="hint">The scale section of a real yueqin recording this instrument's tone was tuned against:</p>
+        <video controls preload="metadata" src="scale-reference-clip.mp4"></video>
+      </details>
+    </div>
+
+    <div class="instrument-card" id="card-erhu">
+      <h2>二胡 <span>erhu</span></h2>
+      <div class="lute">
+        <div class="string-row">
+          <div class="string-label">D5–A6</div>
+          <div class="frets" data-row="main"></div>
+        </div>
+      </div>
+      <p class="hint">Full chromatic range, real sustained notes (CC0 sfzinstruments pack) — hold a fret to sustain, release to stop.</p>
+      <details class="reference-clip">
+        <summary>More erhu sounds (FX, glissando, harmonic, pizzicato, tremolo, trill, vibrato)</summary>
+        <p class="hint">Bonus board, click/tap only — the original 8 accented notes plus the full articulation library. Most of it doesn't have a dedicated key (the main grid above already claims most of the keyboard).</p>
+        <div class="pad-panel">
+          <div class="pads"></div>
+        </div>
+      </details>
+    </div>
+
+    <div class="instrument-card" id="card-dizi">
+      <h2>笛子 <span>dizi</span></h2>
+      <div class="pad-panel">
+        <div class="pads"></div>
+      </div>
+      <div class="tone-controls">
+        <button class="song-btn vibrato-toggle">vibrato: off</button>
+      </div>
+      <p class="hint">14 real recorded notes (A5–G7, natural pitches only). Hold a key to sustain, release to stop.</p>
+    </div>
+
+    <div class="instrument-card" id="card-bangu">
+      <h2>板鼓 <span>bangu</span></h2>
+      <div class="pad-panel">
+        <div class="pads"></div>
+      </div>
+      <p class="hint">Real dagu (bass drum), temple blocks, snare, bangu clapper drum, naobo cymbals, gong, and rattle drum. Hold gong/naobo/rattle to let them ring, release to choke them.</p>
+    </div>
+
+  </div>
+
+  <div class="instrument-card cricket-card" id="card-cricket">
+    <h2>🦗 <span>cricket says...</span></h2>
+    <div class="pad-panel">
+      <div class="pads"></div>
+    </div>
+  </div>
+
+  <script src="core.js?v=7"></script>
+  <script src="yueqin.js?v=2"></script>
+  <script src="erhu.js?v=3"></script>
+  <script src="dizi.js?v=3"></script>
+  <script src="bangu.js?v=6"></script>
+  <script src="cricket.js?v=2"></script>
+</body>
+</html>
