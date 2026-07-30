@@ -230,7 +230,7 @@ h1 span {
 }
 
 .pad {
-  flex: 1 1 80px;
+  flex: 0 1 80px;
   min-width: 80px;
   padding: 0.85rem 0.4rem;
   background: var(--wood-light);
