@@ -472,9 +472,9 @@ function createPadInstrument(config) {
   // error handling needed here.
   let activeVariant = 'default';
 
-  function resolveSampleKey(pad) {
+  function resolveSampleKey(pad, variant = activeVariant) {
     if (pad.sampleKey && typeof pad.sampleKey === 'object') {
-      return pad.sampleKey[activeVariant] ?? pad.sampleKey.default;
+      return pad.sampleKey[variant] ?? pad.sampleKey.default;
     }
     return pad.sampleKey;
   }
@@ -483,13 +483,17 @@ function createPadInstrument(config) {
     activeVariant = name;
   }
 
-  async function playPad(padId, { doBroadcast = true, momentaryLight = true } = {}) {
+  // variant here is the SENDER's active variant, not this client's own —
+  // a note's relay message carries whichever take the sender had toggled
+  // (see playRemote below), so what you hear always matches what they
+  // played, regardless of your own local vibrato-toggle state.
+  async function playPad(padId, { doBroadcast = true, momentaryLight = true, variant } = {}) {
     const pad = pads.find((p) => p.id === padId);
     if (!pad) return;
     if (momentaryLight) lightUpPad(padId);
-    if (broadcast && doBroadcast) sendRelay(id, { pad: padId });
+    if (broadcast && doBroadcast) sendRelay(id, { pad: padId, variant: activeVariant });
 
-    const sampleKey = resolveSampleKey(pad);
+    const sampleKey = resolveSampleKey(pad, variant);
     if (sampleKey && sampleLoader) {
       await sampleLoader.ready;
       const buf = await sampleLoader.getBuffer(sampleKey);
@@ -562,7 +566,7 @@ function createPadInstrument(config) {
       delete remoteVoices[key];
       return;
     }
-    playPad(msg.pad, { doBroadcast: false }).then((voice) => {
+    playPad(msg.pad, { doBroadcast: false, variant: msg.variant }).then((voice) => {
       if (voice) remoteVoices[key] = voice;
     });
   }
