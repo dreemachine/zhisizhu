@@ -313,7 +313,7 @@
     const bar = cardEl.querySelector('.tutorial-hint-bar');
     if (!el || !bar) return;
     const fretRect = el.getBoundingClientRect();
-    const luteRect = cardEl.getBoundingClientRect();
+    const luteRect = cardEl.querySelector('.lute').getBoundingClientRect();
     bar.style.left = `${fretRect.left - luteRect.left + fretRect.width * 0.15}px`;
     bar.style.width = `${fretRect.width * 0.7}px`;
     bar.style.top = `${fretRect.top - luteRect.top - 8}px`;
