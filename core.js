@@ -330,7 +330,10 @@ function createFrettedInstrument(config) {
     const info = heldNoteInfo[noteId];
     heldKeys.delete(noteId);
     delete heldNoteInfo[noteId];
-    if (info) setFretLit(info.string, info.fret, false);
+    if (info) {
+      setFretLit(info.string, info.fret, false);
+      if (broadcast) sendRelay(id, { string: info.string, fret: info.fret, released: true });
+    }
     if (quickVoices[noteId]) {
       quickVoices[noteId].stop();
       delete quickVoices[noteId];
@@ -356,8 +359,23 @@ function createFrettedInstrument(config) {
     [...heldKeys].forEach(releaseKey);
   }
 
+  // Remote voices, keyed per-sender-per-note so a later `released` message
+  // from that same sender stops the right one — a sustained sample (dizi,
+  // erhu) would otherwise just play out its full natural length on every
+  // other client regardless of how long the sender actually held it, since
+  // remote playback has no local key-up event to react to.
+  const remoteVoices = {};
+
   function playRemote(msg) {
-    playNote(msg.string, msg.fret, msg.octaveShift, { doBroadcast: false });
+    const key = `${msg.senderId}:${msg.string}:${msg.fret}`;
+    if (msg.released) {
+      remoteVoices[key]?.stop();
+      delete remoteVoices[key];
+      return;
+    }
+    playNote(msg.string, msg.fret, msg.octaveShift, { doBroadcast: false }).then((voice) => {
+      if (voice) remoteVoices[key] = voice;
+    });
   }
 
   if (!manualWiring) {
@@ -502,7 +520,11 @@ function createPadInstrument(config) {
     const padId = heldPadInfo[noteId];
     heldKeys.delete(noteId);
     delete heldPadInfo[noteId];
-    if (padId) setPadLit(padId, false);
+    if (padId) {
+      setPadLit(padId, false);
+      const pad = pads.find((p) => p.id === padId);
+      if (broadcast && !pad?.oneShot) sendRelay(id, { pad: padId, released: true });
+    }
     if (quickVoices[noteId]) {
       quickVoices[noteId].stop();
       delete quickVoices[noteId];
@@ -527,8 +549,22 @@ function createPadInstrument(config) {
     [...heldKeys].forEach(releasePad);
   }
 
+  // Same per-sender-per-pad voice tracking as the fretted instrument, for
+  // the same reason: a sustained pad (dizi note, gong, naobo, rattle) needs
+  // a release message to stop early on remote clients, since there's no
+  // local key-up event to react to otherwise.
+  const remoteVoices = {};
+
   function playRemote(msg) {
-    playPad(msg.pad, { doBroadcast: false });
+    const key = `${msg.senderId}:${msg.pad}`;
+    if (msg.released) {
+      remoteVoices[key]?.stop();
+      delete remoteVoices[key];
+      return;
+    }
+    playPad(msg.pad, { doBroadcast: false }).then((voice) => {
+      if (voice) remoteVoices[key] = voice;
+    });
   }
 
   if (!manualWiring) {
