@@ -56,7 +56,8 @@ h1 span {
   margin: 0;
 }
 
-.relay-controls {
+.relay-controls,
+.ensemble-controls {
   max-width: 1900px;
   margin: 0 auto 1.5rem;
   background: rgba(69, 59, 74, 0.55);
@@ -217,6 +218,15 @@ h1 span {
 .pad-row-break {
   flex-basis: 100%;
   height: 0;
+}
+
+.pad-caption {
+  flex-basis: 100%;
+  font-size: 0.65rem;
+  color: #b3a3ab;
+  text-align: center;
+  margin: -0.15rem 0 0.3rem;
+  line-height: 1.1;
 }
 
 .pad {

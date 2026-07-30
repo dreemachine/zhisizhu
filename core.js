@@ -40,6 +40,13 @@ document.body.addEventListener('click', ensureAudio, { once: true });
 const instruments = {}; // id -> { cardEl, onKeyDown(e), onKeyUp(e), onBlur() }
 let focusedId = null;
 
+// Every instrument returned by createFrettedInstrument/createPadInstrument
+// registers itself here too — a page-level feature (the ensemble sequencer
+// below) needs to reach across all 4 instruments' actual playNote/playPad
+// functions, but each instrument's object otherwise lives trapped inside
+// its own file's IIFE with no other way out.
+const instrumentAPIs = {};
+
 function registerInstrument(id, cardEl, handlers) {
   instruments[id] = { cardEl, ...handlers };
   cardEl.classList.add('instrument-card');
@@ -387,7 +394,7 @@ function createFrettedInstrument(config) {
   // the default render() here would just get immediately replaced.
   if (broadcast) registerRelayHandler(id, playRemote);
 
-  return {
+  const api = {
     id, cardEl, rows, fretCount, KEY_TO_NOTE,
     render, setOctaveShift, lightUpFret, setFretLit, midiFor,
     playNote, pressNote, releaseKey,
@@ -395,6 +402,8 @@ function createFrettedInstrument(config) {
     heldKeys, heldNoteInfo, quickVoices,
     getOctaveShift: () => octaveShift,
   };
+  instrumentAPIs[id] = api;
+  return api;
 }
 
 // --- pad-instrument shape (erhu, dizi, bangu, cricket board) ---
@@ -412,11 +421,13 @@ function createPadInstrument(config) {
   const { id, cardEl, pads, sampleLoader = null, broadcast = true, manualWiring = false } = config;
 
   const KEY_TO_PAD = {};
-  for (const pad of pads) if (!pad.break) KEY_TO_PAD[pad.key] = pad;
+  for (const pad of pads) if (!pad.break && !pad.caption) KEY_TO_PAD[pad.key] = pad;
 
-  // { break: true } entries in `pads` aren't real pads — they force a new
-  // row in the flex-wrap grid (a full-width spacer), for when a specific
-  // layout matters more than however many pads naturally fit per row.
+  // { break: true } entries force a new row (a full-width spacer). {
+  // caption: '...' } entries are a small full-width text label — same
+  // full-width trick doubles as a forced line break, so a caption placed
+  // right after a group of pads reads as "labeling the group above it"
+  // without needing separate positioning logic. Neither is a real pad.
   function render() {
     const container = cardEl.querySelector('.pads');
     if (!container) return;
@@ -426,6 +437,13 @@ function createPadInstrument(config) {
         const spacer = document.createElement('div');
         spacer.className = 'pad-row-break';
         container.appendChild(spacer);
+        continue;
+      }
+      if (pad.caption) {
+        const label = document.createElement('div');
+        label.className = 'pad-caption';
+        label.textContent = pad.caption;
+        container.appendChild(label);
         continue;
       }
       const div = document.createElement('div');
@@ -578,8 +596,54 @@ function createPadInstrument(config) {
 
   render();
 
-  return {
-    id, cardEl, pads, render, triggerPad: (padId) => playPad(padId), lightUpPad, onKeyDown, onKeyUp, onBlur,
+  const api = {
+    id, cardEl, pads, render, playPad, triggerPad: (padId) => playPad(padId), lightUpPad, onKeyDown, onKeyUp, onBlur,
     setVariant, getVariant: () => activeVariant,
+  };
+  instrumentAPIs[id] = api;
+  return api;
+}
+
+// --- ensemble sequencer ---
+// A "song" here is spread across whichever instruments the arrangement
+// calls for (not just one), so this doesn't know anything about frets or
+// pads specifically — each note just carries a `play()` callback the
+// caller builds by closing over whichever instrument.playNote/playPad it
+// needs, plus an optional `duration` for sustained notes that need
+// cutting off early to match the arrangement's rhythm (a plain pluck or
+// drum hit can just omit it and decay on its own, same as yueqin's
+// existing single-instrument playSong already does).
+function playEnsembleSong(notes, { onDone } = {}) {
+  ensureAudio();
+  const timers = [];
+  const activeVoices = [];
+
+  for (const note of notes) {
+    const startTimer = setTimeout(() => {
+      const result = note.play();
+      if (result && typeof result.then === 'function') {
+        result.then((voice) => {
+          if (!voice) return;
+          if (note.duration) {
+            const stopTimer = setTimeout(() => voice.stop(), note.duration * 1000);
+            timers.push(stopTimer);
+          } else {
+            activeVoices.push(voice);
+          }
+        });
+      }
+    }, note.time * 1000);
+    timers.push(startTimer);
+  }
+
+  const totalMs = Math.max(0, ...notes.map((n) => (n.time + (n.duration || 0)) * 1000)) + 600;
+  const doneTimer = setTimeout(() => onDone?.(), totalMs);
+  timers.push(doneTimer);
+
+  return {
+    stop() {
+      timers.forEach(clearTimeout);
+      activeVoices.forEach((v) => v.stop?.());
+    },
   };
 }
