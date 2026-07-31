@@ -396,6 +396,27 @@ h1 span {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
+.relay-log-panel {
+  max-width: 1900px;
+  margin: 0 auto 1.5rem;
+  background: rgba(69, 59, 74, 0.55);
+  backdrop-filter: blur(4px);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.relay-log {
+  max-height: 220px;
+  overflow-y: auto;
+  font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  background: rgba(8, 9, 15, 0.4);
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  word-break: break-all;
+}
+
 /* --- per-character palettes ---
    yueqin keeps the original mauve/rose (dree's own). The other three are
    sampled from different regions of the same background art, one per

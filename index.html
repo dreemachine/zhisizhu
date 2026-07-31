@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>織丝竹</title>
-  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="style.css?v=6" />
 </head>
 <body>
   <div class="page-header">
@@ -19,6 +19,7 @@
     </label>
     <button class="song-btn" id="relay-connect">connect</button>
     <span class="brightness-label" id="relay-status">relay: not connected</span>
+    <span class="brightness-label" id="relay-presence">presence: not connected</span>
     <button class="song-btn" id="looper-toggle">● Record loop</button>
     <button class="song-btn" id="looper-save">Save loop</button>
     <button class="song-btn" id="looper-download">Download loop</button>
@@ -26,6 +27,11 @@
     <span class="brightness-label" id="looper-status">looper: idle</span>
   </div>
   <div class="tone-controls saved-loops" id="saved-loops"></div>
+
+  <details class="reference-clip relay-log-panel">
+    <summary>Relay log (open this on both sides to see who's sending/receiving what)</summary>
+    <div class="relay-log" id="relay-log"></div>
+  </details>
 
   <div class="tone-controls ensemble-controls">
     <button class="song-btn" id="ensemble-song-toggle">▶ Spring Comes to Xiang River (quartet)</button>
@@ -98,7 +104,7 @@
       <p class="hint">The full vibrato set — click/tap only.</p>
       <details class="reference-clip">
         <summary>More erhu sounds (FX, pizzicato pattern, tremolo, trill)</summary>
-        <p class="hint">Bonus board, click/tap only — the original 8 accented notes plus animal-sound FX, a pizzicato pattern, tremolo, and trill. Most of it doesn't have a dedicated key (the main grid above already claims most of the keyboard).</p>
+        <p class="hint">Bonus board, click/tap only — the original 8 accented notes plus animal-sound FX, a pizzicato pattern, tremolo, and trill.</p>
         <div class="pad-panel">
           <div class="pads fx-pads"></div>
         </div>
@@ -149,7 +155,7 @@
     </div>
   </div>
 
-  <script src="core.js?v=15"></script>
+  <script src="core.js?v=17"></script>
   <script src="yueqin.js?v=4"></script>
   <script src="erhu.js?v=13"></script>
   <script src="dizi.js?v=4"></script>

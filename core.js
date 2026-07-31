@@ -99,31 +99,129 @@ function relayStatus(text) {
   if (el) el.textContent = `relay: ${text}`;
 }
 
+// Visible send/receive log — added specifically to debug one-directional
+// relay reports (one side hears the other but not vice versa), where the
+// "relay: connected" status alone doesn't say whether messages are
+// actually leaving this client, arriving from the other one, or arriving
+// but finding no matching instrument handler. Capped to the last 30 lines
+// so it can't grow unbounded over a long session.
+function logRelay(line) {
+  const el = document.getElementById('relay-log');
+  if (!el) return;
+  const time = new Date().toLocaleTimeString([], { hour12: false });
+  const entry = document.createElement('div');
+  entry.textContent = `[${time}] ${line}`;
+  el.appendChild(entry);
+  while (el.children.length > 30) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
 function connectRelay(url) {
   if (!url) return;
   if (relaySocket) relaySocket.close();
   relayStatus('connecting…');
+  logRelay(`connecting to ${url}…`);
   relaySocket = new WebSocket(url);
-  relaySocket.addEventListener('open', () => relayStatus('connected'));
-  relaySocket.addEventListener('close', () => relayStatus('disconnected'));
-  relaySocket.addEventListener('error', () => relayStatus('error'));
+  relaySocket.addEventListener('open', () => {
+    relayStatus('connected');
+    logRelay('✓ connected');
+    announcePresence();
+  });
+  relaySocket.addEventListener('close', (e) => {
+    relayStatus('disconnected');
+    logRelay(`✗ disconnected (code ${e.code})`);
+  });
+  relaySocket.addEventListener('error', () => {
+    relayStatus('error');
+    logRelay('✗ connection error');
+  });
   relaySocket.addEventListener('message', (e) => {
     let msg;
     try {
       msg = JSON.parse(e.data);
     } catch {
+      logRelay('✗ received unparseable message');
       return;
     }
     if (msg.senderId === CLIENT_ID) return;
+    // meta messages (presence heartbeats so far) are a side channel, not
+    // note activity — routed separately so they don't spam the note log
+    // or get captured into whatever loop is currently recording.
+    if (msg.meta) {
+      metaHandlers[msg.meta]?.(msg);
+      return;
+    }
+    const hasHandler = !!relayHandlers[msg.instrument];
+    logRelay(
+      `← from ${msg.senderId.slice(0, 6)}: ${msg.instrument} ${JSON.stringify(msg)}${hasHandler ? '' : '  [NO HANDLER for this instrument!]'}`
+    );
     ensureAudio();
     relayHandlers[msg.instrument]?.(msg);
   });
   localStorage.setItem(RELAY_URL_KEY, url);
 }
 
+// --- presence (who else is connected) ---
+// Layered on top of the same dumb fan-out relay rather than needing any
+// server-side change: every client periodically announces itself, and
+// each client tracks who it's heard from recently, pruning anyone that's
+// gone quiet (closed the tab, lost connection) after a short timeout.
+const metaHandlers = {};
+function registerMetaHandler(type, handler) {
+  metaHandlers[type] = handler;
+}
+
+function sendRelayMeta(type, payload = {}) {
+  if (relaySocket && relaySocket.readyState === WebSocket.OPEN) {
+    relaySocket.send(JSON.stringify({ senderId: CLIENT_ID, meta: type, ...payload }));
+  }
+}
+
+const PRESENCE_TIMEOUT_MS = 12000;
+const presenceLastSeen = {}; // senderId -> timestamp
+
+function announcePresence() {
+  sendRelayMeta('presence');
+}
+
+registerMetaHandler('presence', (msg) => {
+  const isNew = !(msg.senderId in presenceLastSeen);
+  presenceLastSeen[msg.senderId] = Date.now();
+  if (isNew) logRelay(`• ${msg.senderId.slice(0, 6)} joined`);
+  updatePresenceDisplay();
+});
+
+function updatePresenceDisplay() {
+  const now = Date.now();
+  for (const id in presenceLastSeen) {
+    if (now - presenceLastSeen[id] > PRESENCE_TIMEOUT_MS) {
+      delete presenceLastSeen[id];
+      logRelay(`• ${id.slice(0, 6)} timed out (no heartbeat in ${PRESENCE_TIMEOUT_MS / 1000}s)`);
+    }
+  }
+  const el = document.getElementById('relay-presence');
+  if (!el) return;
+  const others = Object.keys(presenceLastSeen);
+  if (!relaySocket || relaySocket.readyState !== WebSocket.OPEN) {
+    el.textContent = 'presence: not connected';
+  } else if (others.length === 0) {
+    el.textContent = 'presence: no one else seen yet';
+  } else {
+    el.textContent = `presence: ${others.length} other${others.length === 1 ? '' : 's'} (${others.map((id) => id.slice(0, 6)).join(', ')})`;
+  }
+}
+
+setInterval(() => {
+  announcePresence();
+  updatePresenceDisplay();
+}, 4000);
+
 function sendRelay(instrument, payload) {
   if (relaySocket && relaySocket.readyState === WebSocket.OPEN) {
     relaySocket.send(JSON.stringify({ senderId: CLIENT_ID, instrument, ...payload }));
+    logRelay(`→ sent ${instrument} ${JSON.stringify(payload)}`);
+  } else if (relaySocket) {
+    logRelay(`✗ tried to send ${instrument} but socket state is ${relaySocket.readyState} (not OPEN)`);
   }
   // The looper taps every outgoing note event here regardless of whether a
   // relay connection exists — sendRelay already fires for every note any
