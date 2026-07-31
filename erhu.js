@@ -1,17 +1,33 @@
 // 二胡 erhu — a proper chromatic fretted instrument now (like yueqin),
 // built on a CC0 sample pack (sfzinstruments/aliexpress-erhu) covering a
-// full chromatic run D5-A6 in the "sustain" articulation — this is the
-// "deeper sample pack" that was the reason erhu stayed a fixed-note pad
-// board earlier: no pitch-shifting anywhere, every fret is a real
-// recorded note. Sustain pairs naturally with hold/release: hold a fret
-// to sustain the bow stroke, release to stop, same as dizi.
+// full chromatic run D4-A5 in the "sustain" articulation (labeled D5-A6 by
+// the pack itself, but direct pitch measurement — pYIN, confirmed across
+// 10 of the 20 frets — showed every fret sounds exactly one octave below
+// that; a real erhu's open strings are physically fixed at D4/A4, and a
+// second, independent sample pack of just the open-string note landed on
+// the same true D4 despite calling it something else again, so this
+// wasn't a one-off mislabeling, both sources were just wrong about the
+// octave number) — this is the "deeper sample pack" that was the reason
+// erhu stayed a fixed-note pad board earlier: no pitch-shifting anywhere,
+// every fret is a real recorded note. Sustain pairs naturally with
+// hold/release: hold a fret to sustain the bow stroke, release to stop,
+// same as dizi.
 //
 // The original 8-note Berklee "accented" pads plus FX/pizzicato pattern/
-// tremolo/trill/vibrato from earlier stay on the card as a secondary bonus
-// board (click/tap-only — the main grid already claims most sensible
-// keys), tucked under a <details> disclosure so the fretted grid is the
-// primary thing you see and play. Glissando, harmonic, and the extra
-// single-note pizzicatos were trimmed out (dree's call — didn't need them).
+// tremolo/trill stay on the card as a secondary bonus board (click/tap-
+// only — the main grid already claims most sensible keys), tucked under a
+// <details> disclosure so the fretted grid is the primary thing you see
+// and play. Glissando, harmonic, and the extra single-note pizzicatos were
+// trimmed out (dree's call — didn't need them).
+//
+// Vibrato is NOT in that collapsed board — it's promoted to its own
+// always-visible third row, since it's the articulation most worth
+// surfacing rather than burying. (A second CC0 Freesound pack added 4 real
+// low notes here too, D3/G3/C4/E4 by their filenames — but those turned
+// out to be the exact same true pitches as 4 existing main-grid frets
+// once the octave mislabeling above was sorted out, so they were swapped
+// into those frets directly instead of staying as separate redundant
+// pads here.)
 (function () {
   const sampleLoader = createSampleLoader('samples/erhu');
 
@@ -22,13 +38,18 @@
       {
         id: 'main',
         label: 'strings',
-        base: 74, // D5
+        base: 62, // D4 — was 74 (D5), but every fret sounds exactly one octave
+        // below its label per direct pitch measurement (pYIN, confirmed
+        // across 10 of the 20 frets, all off by exactly -12 semitones,
+        // relative intervals between frets were always correct). This was
+        // a mislabeling bug from when the grid was first built, not a
+        // per-sample issue — the real range has been D4-A5 all along.
         keys: ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k'],
         wrapAfter: 10, // display only — 20 frets in one row was too cramped; sample keys/fret numbering unchanged
       },
     ],
     fretCount: 20,
-    tonicMidi: 74,
+    tonicMidi: 62,
     sampleLoader,
     broadcast: true,
   });
@@ -42,16 +63,6 @@
     { id: 'Eb5', key: '6', label: 'Eb5 (accented)', sampleKey: 'Eb5' },
     { id: 'Gb5', key: '7', label: 'Gb5 (accented)', sampleKey: 'Gb5' },
     { id: 'A5', key: '8', label: 'A5 (accented)', sampleKey: 'A5' },
-    { break: true },
-    { id: 'vibrato-a4', key: '', label: 'Vibrato A4', sampleKey: 'vibrato-a4' },
-    { id: 'vibrato-e5', key: '', label: 'Vibrato E5', sampleKey: 'vibrato-e5' },
-    { id: 'vibrato-plain', key: '', label: 'Vibrato (plain)', sampleKey: 'vibrato-plain' },
-    { id: 'vibrato-delayed-a4', key: '', label: 'Vibrato delayed A4', sampleKey: 'vibrato-delayed-a4' },
-    { id: 'vibrato-delayed-e5', key: '', label: 'Vibrato delayed E5', sampleKey: 'vibrato-delayed-e5' },
-    { id: 'vibrato-intensive-a4', key: '', label: 'Vibrato intense A4', sampleKey: 'vibrato-intensive-a4' },
-    { id: 'vibrato-intensive-e5', key: '', label: 'Vibrato intense E5', sampleKey: 'vibrato-intensive-e5' },
-    { id: 'vibrato-pressurized-a4', key: '', label: 'Vibrato pressed A4', sampleKey: 'vibrato-pressurized-a4' },
-    { id: 'vibrato-pressurized-e5', key: '', label: 'Vibrato pressed E5', sampleKey: 'vibrato-pressurized-e5' },
     { break: true },
     { id: 'horse-noise', key: '9', label: 'Horse (A)', sampleKey: 'horse-noise' },
     { id: 'bird-noise', key: '0', label: 'Bird', sampleKey: 'bird-noise' },
@@ -83,5 +94,30 @@
     sampleLoader,
     broadcast: true,
     manualWiring: true,
+    containerSelector: '.fx-pads',
+  });
+
+  const expressivePads = [
+    { id: 'vibrato-a4', key: 'q', label: 'Vibrato A4', sampleKey: 'vibrato-a4' },
+    { id: 'vibrato-e5', key: 'w', label: 'Vibrato E5', sampleKey: 'vibrato-e5' },
+    { id: 'vibrato-plain', key: 'e', label: 'Vibrato (plain)', sampleKey: 'vibrato-plain' },
+    { id: 'vibrato-delayed-a4', key: 'r', label: 'Vibrato delayed A4', sampleKey: 'vibrato-delayed-a4' },
+    { id: 'vibrato-delayed-e5', key: 't', label: 'Vibrato delayed E5', sampleKey: 'vibrato-delayed-e5' },
+    { id: 'vibrato-intensive-a4', key: 'y', label: 'Vibrato intense A4', sampleKey: 'vibrato-intensive-a4' },
+    { id: 'vibrato-intensive-e5', key: 'u', label: 'Vibrato intense E5', sampleKey: 'vibrato-intensive-e5' },
+    { id: 'vibrato-pressurized-a4', key: 'i', label: 'Vibrato pressed A4', sampleKey: 'vibrato-pressurized-a4' },
+    { id: 'vibrato-pressurized-e5', key: 'o', label: 'Vibrato pressed E5', sampleKey: 'vibrato-pressurized-e5' },
+  ];
+
+  // Promoted, always-visible (not in the collapsed <details>) — same
+  // manualWiring click/tap-only treatment as the FX board, own relay id.
+  createPadInstrument({
+    id: 'erhu-expressive',
+    cardEl: document.getElementById('card-erhu'),
+    pads: expressivePads,
+    sampleLoader,
+    broadcast: true,
+    manualWiring: true,
+    containerSelector: '.expressive-pads',
   });
 })();

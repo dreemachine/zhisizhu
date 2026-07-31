@@ -30,7 +30,7 @@
   // Karplus-Strong plucked-string synthesis, computed sample-by-sample into
   // a buffer (not a live Web Audio feedback loop) — see project memory for
   // the full rationale. Unchanged from the original single-instrument app.
-  function pluck(freq, { velocity = 1, sustain = false, attack = true } = {}) {
+  function pluck(freq, { velocity = 1, sustain = false, attack = true, destination = masterBus } = {}) {
     const sampleRate = ctx.sampleRate;
     const period = sampleRate / freq;
     const ringLength = Math.max(2, Math.round(period));
@@ -131,7 +131,7 @@
 
     src.connect(bodyResonance);
     bodyResonance.connect(output);
-    output.connect(masterBus);
+    output.connect(destination);
     src.start();
 
     return {
@@ -351,7 +351,7 @@
         if (note.sustain) {
           yueqin.lightUpFret(note.string, note.fret);
           const midi = yueqin.midiFor(note.string, note.fret, note.octaveShift);
-          const voice = pluck(midiToFreq(midi), { sustain: true });
+          const voice = pluck(midiToFreq(midi), { sustain: true, destination: getInstrumentGain('yueqin') });
           activeSongSustainVoices.push(voice);
           const capMs = TREMOLO_MAX_MS_MIN + Math.random() * (TREMOLO_MAX_MS_MAX - TREMOLO_MAX_MS_MIN);
           const stopMs = note.exact ? note.duration * 1000 : Math.min(note.duration * 1000, capMs);
@@ -447,7 +447,7 @@
   function armTremolo(noteId, rowId, fret, { attack = false } = {}) {
     if (sustainVoices[noteId]) return;
     const midi = yueqin.midiFor(rowId, fret);
-    const voice = pluck(midiToFreq(midi), { sustain: true, attack });
+    const voice = pluck(midiToFreq(midi), { sustain: true, attack, destination: getInstrumentGain('yueqin') });
     sustainVoices[noteId] = voice;
     const maxMs = TREMOLO_MAX_MS_MIN + Math.random() * (TREMOLO_MAX_MS_MAX - TREMOLO_MAX_MS_MIN);
     maxDurationTimers[noteId] = setTimeout(() => {

@@ -307,6 +307,19 @@ h1 span {
   border-color: var(--accent);
 }
 
+.song-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.song-btn:disabled:hover {
+  border-color: #00000040;
+}
+
+.saved-loops:empty {
+  display: none;
+}
+
 .song-btn.playing,
 .song-btn.active {
   background: var(--accent);

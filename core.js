@@ -125,6 +125,170 @@ function sendRelay(instrument, payload) {
   if (relaySocket && relaySocket.readyState === WebSocket.OPEN) {
     relaySocket.send(JSON.stringify({ senderId: CLIENT_ID, instrument, ...payload }));
   }
+  // The looper taps every outgoing note event here regardless of whether a
+  // relay connection exists — sendRelay already fires for every note any
+  // instrument plays (that's its whole job), so this is the one place that
+  // sees the whole ensemble's activity without each instrument needing to
+  // know the looper exists.
+  looperTap?.(instrument, payload);
+}
+
+let looperTap = null;
+function setLooperTap(fn) {
+  looperTap = fn;
+}
+
+// --- ensemble looper ---
+// Records the *event stream* (which instrument, which note, press/release)
+// rather than raw audio — everything on this page already works by
+// dispatching discrete note events (the same ones the relay sends), so a
+// looper here just replays that stream on a timer instead of capturing a
+// waveform. That means perfectly precise loop timing (no re-encoding, no
+// quality loss) and it reuses the exact same playback path a remote peer's
+// notes already take (relayHandlers), so no per-instrument code is needed
+// to make looping work.
+//
+// Whole-ensemble, one shared loop, first pass sets the length (classic
+// loop-pedal behavior) — later passes overdub into the same cycle rather
+// than starting a new one.
+function createLooper() {
+  let state = 'idle'; // idle | recording | overdubbing | playing
+  let events = []; // { time, instrument, payload } — time is seconds into the loop cycle
+  let loopDuration = 0;
+  let recordStartTime = 0; // performance.now() at the start of the current record/overdub pass
+  let loopStartTime = 0; // performance.now() at the start of the currently-playing cycle
+  let cycleTimers = [];
+
+  function onNoteEvent(instrument, payload) {
+    if (state !== 'recording' && state !== 'overdubbing') return;
+    const elapsed = (performance.now() - recordStartTime) / 1000;
+    const time = loopDuration > 0 ? elapsed % loopDuration : elapsed;
+    events.push({ time, instrument, payload: { ...payload } });
+  }
+  setLooperTap(onNoteEvent);
+
+  function scheduleCycle() {
+    cycleTimers.forEach(clearTimeout);
+    cycleTimers = [];
+    if (loopDuration <= 0) return;
+    loopStartTime = performance.now();
+    for (const ev of events) {
+      cycleTimers.push(
+        setTimeout(() => {
+          relayHandlers[ev.instrument]?.({ senderId: 'looper', ...ev.payload });
+        }, ev.time * 1000)
+      );
+    }
+    cycleTimers.push(setTimeout(scheduleCycle, loopDuration * 1000));
+  }
+
+  function startRecording() {
+    ensureAudio();
+    if (state === 'playing') {
+      state = 'overdubbing';
+      recordStartTime = loopStartTime;
+    } else if (state === 'idle') {
+      events = [];
+      loopDuration = 0;
+      recordStartTime = performance.now();
+      state = 'recording';
+    }
+  }
+
+  function stopRecording() {
+    if (state === 'recording') {
+      loopDuration = (performance.now() - recordStartTime) / 1000;
+      state = 'playing';
+      scheduleCycle();
+    } else if (state === 'overdubbing') {
+      state = 'playing';
+    }
+  }
+
+  function stop() {
+    state = 'idle';
+    cycleTimers.forEach(clearTimeout);
+    cycleTimers = [];
+  }
+
+  function clear() {
+    events = [];
+    loopDuration = 0;
+    stop();
+  }
+
+  // Saved loops live only in this array (in-memory, tab-lifetime only —
+  // "clears on refresh" was explicit) rather than localStorage, since dree
+  // asked for temporary/session-only saves, not persistent ones.
+  const savedLoops = [];
+
+  function saveCurrentLoop() {
+    if (loopDuration <= 0) return -1;
+    savedLoops.push({
+      events: events.map((e) => ({ ...e })),
+      loopDuration,
+      savedAt: new Date(),
+    });
+    return savedLoops.length - 1;
+  }
+
+  function loadSavedLoop(index) {
+    const saved = savedLoops[index];
+    if (!saved) return;
+    events = saved.events.map((e) => ({ ...e }));
+    loopDuration = saved.loopDuration;
+    state = 'playing';
+    scheduleCycle();
+  }
+
+  function deleteSavedLoop(index) {
+    savedLoops.splice(index, 1);
+  }
+
+  // Real audio export (not just the event data) via MediaRecorder on a
+  // MediaStreamDestination fed from the same masterBus everything already
+  // plays through — waits for the top of the next cycle first so the
+  // captured file is exactly one clean loop repetition, not a mid-cycle
+  // cut. Returns a Blob (webm/opus, whatever the browser's MediaRecorder
+  // defaults to) the caller turns into a download link.
+  async function recordCurrentLoopAsAudio() {
+    if (loopDuration <= 0 || !ctx || !masterBus) return null;
+    const elapsed = ((performance.now() - loopStartTime) / 1000) % loopDuration;
+    const waitMs = Math.max(0, (loopDuration - elapsed) * 1000);
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+
+    const dest = ctx.createMediaStreamDestination();
+    masterBus.connect(dest);
+    const recorder = new MediaRecorder(dest.stream);
+    const chunks = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    const stopped = new Promise((resolve) => {
+      recorder.onstop = resolve;
+    });
+    recorder.start();
+    await new Promise((resolve) => setTimeout(resolve, loopDuration * 1000));
+    recorder.stop();
+    await stopped;
+    masterBus.disconnect(dest);
+    return new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
+  }
+
+  return {
+    startRecording,
+    stopRecording,
+    stop,
+    clear,
+    saveCurrentLoop,
+    loadSavedLoop,
+    deleteSavedLoop,
+    getSavedLoops: () => savedLoops,
+    recordCurrentLoopAsAudio,
+    getState: () => state,
+    getLoopDuration: () => loopDuration,
+    getEventCount: () => events.length,
+  };
 }
 
 // --- shared music-theory helpers ---
@@ -182,19 +346,43 @@ function createSampleLoader(baseUrl) {
   return { ready, getBuffer };
 }
 
-// Plays a decoded AudioBuffer through the shared master bus, with the same
-// stop-handle shape every synth voice returns (releaseSeconds fade-out),
-// so sample playback and synthesized playback are interchangeable to
-// callers. playbackRate !== 1 pitch-shifts (used where a single recorded
-// note needs to cover nearby semitones).
-function playBuffer(buffer, { velocity = 1, playbackRate = 1 } = {}) {
+// --- per-instrument volume ---
+// Every instrument gets its own GainNode sitting between its own output and
+// the shared masterBus, so each can be balanced independently instead of
+// everything summing at a single fixed level. Created lazily per id (ctx
+// only exists after the first user gesture triggers ensureAudio, so this
+// can't be set up until an instrument actually plays something).
+const instrumentGains = {};
+
+function getInstrumentGain(id) {
+  if (!instrumentGains[id]) {
+    const gain = ctx.createGain();
+    gain.gain.value = 1;
+    gain.connect(masterBus);
+    instrumentGains[id] = gain;
+  }
+  return instrumentGains[id];
+}
+
+function setInstrumentVolume(id, value) {
+  getInstrumentGain(id).gain.value = value;
+}
+
+// Plays a decoded AudioBuffer, with the same stop-handle shape every synth
+// voice returns (releaseSeconds fade-out), so sample playback and
+// synthesized playback are interchangeable to callers. playbackRate !== 1
+// pitch-shifts (used where a single recorded note needs to cover nearby
+// semitones). destination defaults to masterBus directly for any caller
+// that doesn't care about per-instrument volume (there shouldn't be any
+// left, but this keeps old call shapes working).
+function playBuffer(buffer, { velocity = 1, playbackRate = 1, destination = masterBus } = {}) {
   const src = ctx.createBufferSource();
   src.buffer = buffer;
   src.playbackRate.value = playbackRate;
   const output = ctx.createGain();
   output.gain.value = velocity;
   src.connect(output);
-  output.connect(masterBus);
+  output.connect(destination);
   src.start();
   return {
     stop(releaseSeconds = 0.05) {
@@ -324,9 +512,9 @@ function createFrettedInstrument(config) {
     if (sampleLoader) {
       await sampleLoader.ready;
       const buf = await sampleLoader.getBuffer(`${rowId}-${fret}`);
-      if (buf) return playBuffer(buf);
+      if (buf) return playBuffer(buf, { destination: getInstrumentGain(id) });
     }
-    return synth ? synth(freq) : undefined;
+    return synth ? synth(freq, { destination: getInstrumentGain(id) }) : undefined;
   }
 
   function pressNote(noteId, rowId, fret) {
@@ -427,7 +615,7 @@ function createFrettedInstrument(config) {
 // can now be held for its full natural length and cut clean on release
 // instead of needing to be pre-trimmed to some fixed short duration.
 function createPadInstrument(config) {
-  const { id, cardEl, pads, sampleLoader = null, broadcast = true, manualWiring = false } = config;
+  const { id, cardEl, pads, sampleLoader = null, broadcast = true, manualWiring = false, containerSelector = '.pads' } = config;
 
   const KEY_TO_PAD = {};
   for (const pad of pads) if (!pad.break && !pad.caption) KEY_TO_PAD[pad.key] = pad;
@@ -439,8 +627,13 @@ function createPadInstrument(config) {
   // joins the normal flex-wrap flow. That keeps captioned pads sitting
   // inline with their neighbors in the same rows as before, instead of
   // the caption's own width forcing a break after every single group.
+  //
+  // containerSelector defaults to '.pads', but a card with more than one
+  // pad-instrument sharing it (erhu's FX board + its expressive-notes row)
+  // needs each one pointed at its OWN container — otherwise both target
+  // the same '.pads' div and each render() wipes out the other's content.
   function render() {
-    const container = cardEl.querySelector('.pads');
+    const container = cardEl.querySelector(containerSelector);
     if (!container) return;
     container.innerHTML = '';
     let pending = []; // pad divs since the last caption/break, awaiting a caption or a flush
@@ -547,9 +740,9 @@ function createPadInstrument(config) {
     if (sampleKey && sampleLoader) {
       await sampleLoader.ready;
       const buf = await sampleLoader.getBuffer(sampleKey);
-      if (buf) return playBuffer(buf);
+      if (buf) return playBuffer(buf, { destination: getInstrumentGain(id) });
     }
-    return pad.synth ? pad.synth() : undefined;
+    return pad.synth ? pad.synth({ destination: getInstrumentGain(id) }) : undefined;
   }
 
   function pressPad(noteId, padId) {
