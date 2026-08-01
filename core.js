@@ -27,7 +27,18 @@ function ensureAudio() {
   if (ctx.state === 'suspended') ctx.resume();
 }
 
-document.body.addEventListener('click', ensureAudio, { once: true });
+// The first gesture both unlocks Web Audio and starts warming the recorded
+// samples. The actual fret/pad handler runs before this bubbling listener, so
+// the note the player intentionally pressed remains the highest-priority
+// fetch; the rest fill the cache immediately afterward.
+document.body.addEventListener(
+  'click',
+  () => {
+    ensureAudio();
+    warmAllSamples();
+  },
+  { once: true }
+);
 
 // --- keyboard focus manager ---
 // Four+ instruments can't all have live keyboard mappings at once without
@@ -88,6 +99,7 @@ window.addEventListener('blur', () => {
 const CLIENT_ID = Math.random().toString(36).slice(2);
 const RELAY_URL_KEY = 'ensembleRelayUrl';
 let relaySocket = null;
+let relayConnectionGeneration = 0;
 const relayHandlers = {}; // instrumentId -> function(payload)
 
 function registerRelayHandler(instrumentId, handler) {
@@ -118,24 +130,41 @@ function logRelay(line) {
 
 function connectRelay(url) {
   if (!url) return;
-  if (relaySocket) relaySocket.close();
+  const previousSocket = relaySocket;
+  const generation = ++relayConnectionGeneration;
+  if (previousSocket) previousSocket.close();
+  for (const id in presenceLastSeen) delete presenceLastSeen[id];
+  updatePresenceDisplay();
   relayStatus('connecting…');
   logRelay(`connecting to ${url}…`);
-  relaySocket = new WebSocket(url);
-  relaySocket.addEventListener('open', () => {
+  const socket = new WebSocket(url);
+  relaySocket = socket;
+
+  // Every callback verifies that it still belongs to the current connection.
+  // Without this guard, the old socket's delayed close event can overwrite a
+  // newer socket's freshly-connected status during a reconnect.
+  const isCurrent = () => relaySocket === socket && relayConnectionGeneration === generation;
+
+  socket.addEventListener('open', () => {
+    if (!isCurrent()) return;
     relayStatus('connected');
     logRelay('✓ connected');
     announcePresence();
   });
-  relaySocket.addEventListener('close', (e) => {
+  socket.addEventListener('close', (e) => {
+    if (!isCurrent()) return;
     relayStatus('disconnected');
     logRelay(`✗ disconnected (code ${e.code})`);
+    for (const id in presenceLastSeen) delete presenceLastSeen[id];
+    updatePresenceDisplay();
   });
-  relaySocket.addEventListener('error', () => {
+  socket.addEventListener('error', () => {
+    if (!isCurrent()) return;
     relayStatus('error');
     logRelay('✗ connection error');
   });
-  relaySocket.addEventListener('message', (e) => {
+  socket.addEventListener('message', (e) => {
+    if (!isCurrent()) return;
     let msg;
     try {
       msg = JSON.parse(e.data);
@@ -156,6 +185,10 @@ function connectRelay(url) {
       `← from ${msg.senderId.slice(0, 6)}: ${msg.instrument} ${JSON.stringify(msg)}${hasHandler ? '' : '  [NO HANDLER for this instrument!]'}`
     );
     ensureAudio();
+    // Shared-mode loop recording includes live notes from remote musicians,
+    // but deliberately excludes already-replayed loop events to prevent a
+    // loop from recording and multiplying itself during an overdub.
+    looperTap?.(msg.instrument, relayPayload(msg), { source: 'remote' });
     relayHandlers[msg.instrument]?.(msg);
   });
   localStorage.setItem(RELAY_URL_KEY, url);
@@ -216,19 +249,21 @@ setInterval(() => {
   updatePresenceDisplay();
 }, 4000);
 
-function sendRelay(instrument, payload) {
+function relayPayload(message) {
+  const { senderId, instrument, ...payload } = message;
+  return payload;
+}
+
+function sendRelay(instrument, payload, { tapLooper = true } = {}) {
   if (relaySocket && relaySocket.readyState === WebSocket.OPEN) {
     relaySocket.send(JSON.stringify({ senderId: CLIENT_ID, instrument, ...payload }));
     logRelay(`→ sent ${instrument} ${JSON.stringify(payload)}`);
   } else if (relaySocket) {
     logRelay(`✗ tried to send ${instrument} but socket state is ${relaySocket.readyState} (not OPEN)`);
   }
-  // The looper taps every outgoing note event here regardless of whether a
-  // relay connection exists — sendRelay already fires for every note any
-  // instrument plays (that's its whole job), so this is the one place that
-  // sees the whole ensemble's activity without each instrument needing to
-  // know the looper exists.
-  looperTap?.(instrument, payload);
+  // Local events are captured even without a relay connection. Loop playback
+  // opts out so overdubbing cannot recursively record the loop itself.
+  if (tapLooper) looperTap?.(instrument, payload, { source: 'local' });
 }
 
 let looperTap = null;
@@ -246,19 +281,23 @@ function setLooperTap(fn) {
 // notes already take (relayHandlers), so no per-instrument code is needed
 // to make looping work.
 //
-// Whole-ensemble, one shared loop, first pass sets the length (classic
-// loop-pedal behavior) — later passes overdub into the same cycle rather
-// than starting a new one.
+// One event loop with an explicit scope: local captures only this browser;
+// shared also captures live peers and relays playback to them. The first
+// pass sets the length (classic loop-pedal behavior); later passes overdub
+// into the same cycle rather than starting a new one.
 function createLooper() {
   let state = 'idle'; // idle | recording | overdubbing | playing
+  let scope = 'local'; // local | shared
   let events = []; // { time, instrument, payload } — time is seconds into the loop cycle
   let loopDuration = 0;
   let recordStartTime = 0; // performance.now() at the start of the current record/overdub pass
   let loopStartTime = 0; // performance.now() at the start of the currently-playing cycle
   let cycleTimers = [];
 
-  function onNoteEvent(instrument, payload) {
+  function onNoteEvent(instrument, payload, { source = 'local' } = {}) {
     if (state !== 'recording' && state !== 'overdubbing') return;
+    if (payload.loopPlayback) return;
+    if (source === 'remote' && scope !== 'shared') return;
     const elapsed = (performance.now() - recordStartTime) / 1000;
     const time = loopDuration > 0 ? elapsed % loopDuration : elapsed;
     events.push({ time, instrument, payload: { ...payload } });
@@ -273,7 +312,11 @@ function createLooper() {
     for (const ev of events) {
       cycleTimers.push(
         setTimeout(() => {
-          relayHandlers[ev.instrument]?.({ senderId: 'looper', ...ev.payload });
+          const playbackPayload = { ...ev.payload, loopPlayback: true };
+          relayHandlers[ev.instrument]?.({ senderId: 'looper', ...playbackPayload });
+          if (scope === 'shared') {
+            sendRelay(ev.instrument, playbackPayload, { tapLooper: false });
+          }
         }, ev.time * 1000)
       );
     }
@@ -325,6 +368,7 @@ function createLooper() {
     savedLoops.push({
       events: events.map((e) => ({ ...e })),
       loopDuration,
+      scope,
       savedAt: new Date(),
     });
     return savedLoops.length - 1;
@@ -335,12 +379,18 @@ function createLooper() {
     if (!saved) return;
     events = saved.events.map((e) => ({ ...e }));
     loopDuration = saved.loopDuration;
+    scope = saved.scope || 'local';
     state = 'playing';
     scheduleCycle();
   }
 
   function deleteSavedLoop(index) {
     savedLoops.splice(index, 1);
+  }
+
+  function setScope(nextScope) {
+    if (nextScope !== 'local' && nextScope !== 'shared') return;
+    scope = nextScope;
   }
 
   // Real audio export (not just the event data) via MediaRecorder on a
@@ -381,11 +431,13 @@ function createLooper() {
     saveCurrentLoop,
     loadSavedLoop,
     deleteSavedLoop,
+    setScope,
     getSavedLoops: () => savedLoops,
     recordCurrentLoopAsAudio,
     getState: () => state,
     getLoopDuration: () => loopDuration,
     getEventCount: () => events.length,
+    getScope: () => scope,
   };
 }
 
@@ -413,6 +465,16 @@ function midiToName(midi) {
 // problem, so every fetch here is cache-busted with one per-page-load
 // timestamp (shared across all instruments' loaders, computed once).
 const SAMPLE_CACHE_BUST = Date.now();
+const sampleLoaders = [];
+
+function warmAllSamples() {
+  if (!ctx) return;
+  // Fire-and-forget by design: a missing optional sample must never block the
+  // instrument UI. Individual loader promises already resolve failures to
+  // null, and the requested note gets into the cache before this background
+  // sweep because the body listener runs during event bubbling.
+  Promise.allSettled(sampleLoaders.map((loader) => loader.preloadAll()));
+}
 
 function createSampleLoader(baseUrl) {
   let manifest = null;
@@ -441,7 +503,15 @@ function createSampleLoader(baseUrl) {
     return promise;
   }
 
-  return { ready, getBuffer };
+  async function preloadAll() {
+    await ready;
+    if (!manifest) return [];
+    return Promise.all(Object.keys(manifest).map((key) => getBuffer(key)));
+  }
+
+  const api = { ready, getBuffer, preloadAll };
+  sampleLoaders.push(api);
+  return api;
 }
 
 // --- per-instrument volume ---
@@ -544,7 +614,10 @@ function createFrettedInstrument(config) {
     return row.base + fret + shift * (octaveRange?.step ?? 12);
   }
 
-  function render() {
+  let renderWiring = {};
+  function render(options = renderWiring) {
+    renderWiring = options;
+    const { onPress = pressNote, onRelease = releaseKey } = options;
     for (const row of rows) {
       const container = cardEl.querySelector(`[data-row="${row.id}"]`);
       if (!container) continue;
@@ -563,15 +636,31 @@ function createFrettedInstrument(config) {
         const div = document.createElement('div');
         div.className = 'fret' + (isPentatonic(midi) ? ' scale-note' : '');
         div.dataset.fret = String(fret);
+        div.setAttribute('role', 'button');
+        div.tabIndex = 0;
+        div.setAttribute('aria-label', `${row.label || row.id} ${midiToName(midi)}; keyboard key ${row.keys[fret]}`);
         div.innerHTML = `<span class="key">${row.keys[fret]}</span><span class="note">${midiToName(midi)}</span>`;
         const noteId = `ptr:${id}:${row.id}:${fret}`;
         div.addEventListener('pointerdown', (e) => {
           e.preventDefault();
-          pressNote(noteId, row.id, fret);
+          div.setPointerCapture?.(e.pointerId);
+          onPress(noteId, row.id, fret);
         });
-        div.addEventListener('pointerup', () => releaseKey(noteId));
-        div.addEventListener('pointerleave', () => releaseKey(noteId));
-        div.addEventListener('pointercancel', () => releaseKey(noteId));
+        div.addEventListener('pointerup', () => onRelease(noteId));
+        div.addEventListener('pointercancel', () => onRelease(noteId));
+        div.addEventListener('keydown', (e) => {
+          if ((e.key !== 'Enter' && e.key !== ' ') || e.repeat) return;
+          e.preventDefault();
+          e.stopPropagation();
+          onPress(noteId, row.id, fret);
+        });
+        div.addEventListener('keyup', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          e.stopPropagation();
+          onRelease(noteId);
+        });
+        div.addEventListener('blur', () => onRelease(noteId));
         container.appendChild(div);
       }
     }
@@ -667,16 +756,22 @@ function createFrettedInstrument(config) {
   // other client regardless of how long the sender actually held it, since
   // remote playback has no local key-up event to react to.
   const remoteVoices = {};
+  const remoteHeld = new Set();
 
   function playRemote(msg) {
     const key = `${msg.senderId}:${msg.string}:${msg.fret}`;
     if (msg.released) {
+      remoteHeld.delete(key);
       remoteVoices[key]?.stop();
       delete remoteVoices[key];
       return;
     }
+    remoteHeld.add(key);
+    remoteVoices[key]?.stop(0.03);
     playNote(msg.string, msg.fret, msg.octaveShift, { doBroadcast: false }).then((voice) => {
-      if (voice) remoteVoices[key] = voice;
+      if (!voice) return;
+      if (remoteHeld.has(key)) remoteVoices[key] = voice;
+      else voice.stop(0.05);
     });
   }
 
@@ -771,15 +866,31 @@ function createPadInstrument(config) {
       const div = document.createElement('div');
       div.className = 'pad';
       div.dataset.pad = pad.id;
+      div.setAttribute('role', 'button');
+      div.tabIndex = 0;
+      div.setAttribute('aria-label', `${pad.label}${pad.key ? `; keyboard key ${pad.key}` : ''}`);
       div.innerHTML = `<span class="key">${pad.key}</span><span class="note">${pad.label}</span>`;
       const noteId = `ptr:${id}:${pad.id}`;
       div.addEventListener('pointerdown', (e) => {
         e.preventDefault();
+        div.setPointerCapture?.(e.pointerId);
         pressPad(noteId, pad.id);
       });
       div.addEventListener('pointerup', () => releasePad(noteId));
-      div.addEventListener('pointerleave', () => releasePad(noteId));
       div.addEventListener('pointercancel', () => releasePad(noteId));
+      div.addEventListener('keydown', (e) => {
+        if ((e.key !== 'Enter' && e.key !== ' ') || e.repeat) return;
+        e.preventDefault();
+        e.stopPropagation();
+        pressPad(noteId, pad.id);
+      });
+      div.addEventListener('keyup', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        e.stopPropagation();
+        releasePad(noteId);
+      });
+      div.addEventListener('blur', () => releasePad(noteId));
       pending.push(div);
     }
     flush();
@@ -899,16 +1010,22 @@ function createPadInstrument(config) {
   // a release message to stop early on remote clients, since there's no
   // local key-up event to react to otherwise.
   const remoteVoices = {};
+  const remoteHeld = new Set();
 
   function playRemote(msg) {
     const key = `${msg.senderId}:${msg.pad}`;
     if (msg.released) {
+      remoteHeld.delete(key);
       remoteVoices[key]?.stop();
       delete remoteVoices[key];
       return;
     }
+    remoteHeld.add(key);
+    remoteVoices[key]?.stop(0.03);
     playPad(msg.pad, { doBroadcast: false, variant: msg.variant }).then((voice) => {
-      if (voice) remoteVoices[key] = voice;
+      if (!voice) return;
+      if (remoteHeld.has(key)) remoteVoices[key] = voice;
+      else voice.stop(0.05);
     });
   }
 

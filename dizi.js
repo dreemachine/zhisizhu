@@ -8,13 +8,9 @@
 //
 // Vibrato toggle: each pad's sampleKey is { default, vibrato } — flip the
 // button and every pad switches to a faster-vibrato take of the same note
-// instead. The `-vibrato` files are dree's own cut/blend of the source
-// recordings (not done yet as of writing this) — until those exist,
-// toggling to vibrato mode just plays nothing (sampleLoader misses the
-// key and returns null, same as any other missing sample), which is
-// expected, not a bug. Drop each note's fast-vibrato take into
-// samples/dizi/ named exactly `${note}-vibrato.mp3` (e.g. A5-vibrato.mp3)
-// and it starts working with no code changes.
+// instead. The vibrato set is complete in the manifest; these takes are
+// dree's own cuts/blends of the source recordings. A missing future variant
+// still follows the loader's normal null-on-missing behavior.
 (function () {
   const sampleLoader = createSampleLoader('samples/dizi');
 

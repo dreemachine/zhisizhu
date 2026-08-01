@@ -1,46 +1,59 @@
-# yue-qin live relay
+# Zhisizhu live relay
 
-A tiny WebSocket fan-out server: every "note played" message a connected
-browser tab sends gets forwarded to every other connected tab. That's it —
-no accounts, no persistence, no note logic (that all lives in `app.js` on
-both ends). Meant to run only while you're actually playing, not as an
-always-on service.
+A small WebSocket fan-out service for live ensemble sessions. Browsers send compact JSON note events; the relay forwards each valid event to every other connected browser. Audio is synthesized or sampled locally by each client—no audio stream passes through the server.
 
-## Run it (during a session)
+The relay has no accounts, persistence, rooms, or musical logic. It is designed to run only during an active session.
 
-```
+## Run locally
+
+```powershell
 cd relay
-npm install     # first time only
+npm install     # first run only
 npm start
 ```
 
-This starts the relay on `ws://localhost:8765`.
+The default endpoint is `ws://localhost:8765`. Set the `PORT` environment variable to choose another port.
 
-## Expose it to the internet for that session
+## Expose it for a session
 
-The relay is only reachable on your own machine until you tunnel it out.
-[ngrok](https://ngrok.com) is the simplest option — free tier includes one
-reserved static domain, so the URL stays the same across restarts instead
-of changing every time:
+The local endpoint is not internet-accessible. One option is an ngrok tunnel:
 
-1. Sign up at ngrok.com (free), install the CLI, `ngrok config add-authtoken <your token>`.
-2. Reserve a static domain once, in the ngrok dashboard (Domains → Create Domain) — e.g. `dree-yueqin.ngrok-free.app`.
-3. Each session, after starting the relay above, run:
-   ```
+1. Install ngrok, create an account, and configure its authentication token.
+2. Reserve a static domain if you want the same URL each session.
+3. Start the relay.
+4. Start the tunnel, for example:
+
+   ```powershell
    ngrok http 8765 --domain=dree-yueqin.ngrok-free.app
    ```
-4. On the yue-qin page (yueqin.dreemachine.com), paste `wss://dree-yueqin.ngrok-free.app`
-   into the "relay url" field and hit connect. Do the same on your own tab
-   (the performer's tab also connects, so it can send — everyone, including
-   you, should be connected).
-5. When the session's over, stop ngrok and the relay (Ctrl+C both). Nothing
-   is left running or reachable until you start it again next time.
 
-## How it works
+5. Enter the resulting `wss://` URL in every player's relay field and press **connect**.
+6. Open the relay log on both sides when diagnosing send/receive behavior.
+7. Stop both ngrok and the relay when the session ends.
 
-Every pluck (manual key press or a song button) sends a small JSON message
-— `{senderId, string, fret, octaveShift}` — to the relay, which echoes it
-to everyone else. Each receiving tab replays it through its own copy of the
-same `pluck()` synthesis, so it sounds like the same instrument, not a
-streamed recording. Held tremolo-sustain notes aren't broadcast yet (only
-quick plucks and song playback) — a possible follow-up if it's missed.
+Treat the tunnel URL as session access: the relay does not authenticate users. Do not leave it running as a general public service.
+
+## Accepted messages
+
+The server accepts JSON text messages up to 64 KiB. A message must contain:
+
+- A string `senderId`.
+- Either a string `instrument` for musical events or `meta` for side-channel events such as presence.
+
+Malformed JSON, binary frames, and invalid envelopes are dropped. Valid messages are still forwarded verbatim; interpretation remains entirely client-side.
+
+See [`../docs/maintenance.md`](../docs/maintenance.md) for current fretted, pad, yueqin-articulation, presence, and loop-playback payloads.
+
+## Shared loops
+
+In local scope, loop playback never reaches the relay. In shared scope, the loop owner sends replay events with `loopPlayback: true`. Receiving clients play those events but do not capture them into another recording pass, preventing recursive feedback.
+
+## Operational limits
+
+- No authentication or authorization.
+- No encrypted transport by itself; internet sessions rely on the tunnel's `wss://` endpoint.
+- No server-side clock synchronization or jitter buffer.
+- No persistent roster or musical state.
+- One process is effectively one shared session; everyone connected receives every valid event.
+
+These constraints are intentional for the current start-play-stop workflow.

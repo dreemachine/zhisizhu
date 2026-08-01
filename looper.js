@@ -4,6 +4,7 @@
 // label in sync with whatever state the looper is actually in.
 (function () {
   const looper = createLooper();
+  const scopeBtn = document.getElementById('looper-scope');
   const toggleBtn = document.getElementById('looper-toggle');
   const saveBtn = document.getElementById('looper-save');
   const downloadBtn = document.getElementById('looper-download');
@@ -21,17 +22,22 @@
 
   function refresh() {
     const state = looper.getState();
+    const scope = looper.getScope();
+    scopeBtn.textContent = `loop scope: ${scope}`;
+    scopeBtn.classList.toggle('active', scope === 'shared');
+    scopeBtn.setAttribute('aria-pressed', String(scope === 'shared'));
     toggleBtn.textContent = labelFor(state);
     toggleBtn.classList.toggle('active', state === 'recording' || state === 'overdubbing');
     const dur = looper.getLoopDuration();
     const count = looper.getEventCount();
     const hasLoop = dur > 0;
+    const scopeDescription = scope === 'shared' ? 'shared with relay peers' : 'this browser only';
     saveBtn.disabled = !hasLoop;
     downloadBtn.disabled = !hasLoop;
     if (state === 'idle') {
-      statusEl.textContent = 'looper: idle';
+      statusEl.textContent = `looper: idle — ${scopeDescription}`;
     } else if (state === 'recording') {
-      statusEl.textContent = 'looper: recording… play anything, hit stop to set the loop length';
+      statusEl.textContent = `looper: recording ${scopeDescription}… play anything, hit stop to set the loop length`;
     } else if (state === 'overdubbing') {
       statusEl.textContent = `looper: overdubbing onto a ${dur.toFixed(1)}s loop (${count} events so far)`;
     } else {
@@ -47,7 +53,7 @@
       const wrap = document.createElement('span');
       wrap.className = 'brightness-label';
       const timeStr = loop.savedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      wrap.textContent = `#${i + 1} (${loop.loopDuration.toFixed(1)}s, ${timeStr}) `;
+      wrap.textContent = `#${i + 1} (${loop.loopDuration.toFixed(1)}s, ${loop.scope || 'local'}, ${timeStr}) `;
 
       const loadBtn = document.createElement('button');
       loadBtn.className = 'song-btn';
@@ -79,6 +85,11 @@
     } else {
       looper.stopRecording();
     }
+    refresh();
+  });
+
+  scopeBtn.addEventListener('click', () => {
+    looper.setScope(looper.getScope() === 'local' ? 'shared' : 'local');
     refresh();
   });
 

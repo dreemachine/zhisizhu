@@ -1,8 +1,8 @@
 {
-  "name": "yueqin-relay",
+  "name": "zhisizhu-relay",
   "version": "1.0.0",
   "private": true,
-  "description": "Minimal WebSocket fan-out relay for the yue-qin live-broadcast feature",
+  "description": "Minimal validated WebSocket fan-out relay for the zhi sizhu ensemble",
   "main": "relay-server.js",
   "scripts": {
     "start": "node relay-server.js"

@@ -10,7 +10,7 @@
 //     takes notes that are both natural AND within its real A5-G7 range;
 //     everything else (accidentals, or below dizi's floor) went to erhu.
 //     Two of erhu's notes happen to land exactly on E5 — those use the
-//     real vibrato-e5 sample (via the erhu-fx board) instead of the plain
+//     real vibrato-e5 sample (via the erhu expressive board) instead of the plain
 //     fretted note, and that pitch is unaffected by the note below.
 //   - bangu: a soft hit marking each low-phrase's start, and the gong
 //     right at the melody's climactic entry into the high sustain.
@@ -37,15 +37,15 @@
   function buildNotes() {
     const yueqin = instrumentAPIs.yueqin;
     const erhu = instrumentAPIs.erhu;
-    const erhuFx = instrumentAPIs['erhu-fx'];
+    const erhuExpressive = instrumentAPIs['erhu-expressive'];
     const dizi = instrumentAPIs.dizi;
     const bangu = instrumentAPIs.bangu;
-    if (!yueqin || !erhu || !erhuFx || !dizi || !bangu) return null;
+    if (!yueqin || !erhu || !erhuExpressive || !dizi || !bangu) return null;
 
     const yqLow = (fret, shift) => () => yueqin.playNote('low', fret, shift);
     const yqHigh = (fret, shift) => () => yueqin.playNote('high', fret, shift);
     const erhuNote = (fret) => () => erhu.playNote('main', fret);
-    const erhuVibratoE5 = () => erhuFx.playPad('vibrato-e5');
+    const erhuVibratoE5 = () => erhuExpressive.playPad('vibrato-e5');
     const diziPad = (padId) => () => dizi.playPad(padId);
     const diziPadVibrato = (padId) => () => dizi.playPad(padId, { variant: 'vibrato' });
     const banguPad = (padId) => () => bangu.playPad(padId);

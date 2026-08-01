@@ -289,7 +289,10 @@
   function stopSong() {
     activeSongTimeouts.forEach(clearTimeout);
     activeSongTimeouts = [];
-    activeSongSustainVoices.forEach((v) => v.stop());
+    activeSongSustainVoices.forEach(({ voice, note }) => {
+      voice.stop();
+      sendRelay('yueqin', { string: note.string, fret: note.fret, released: true });
+    });
     activeSongSustainVoices = [];
     activeSongId = null;
     cardEl.querySelectorAll('.song-btn').forEach((b) => b.classList.remove('playing'));
@@ -352,12 +355,20 @@
           yueqin.lightUpFret(note.string, note.fret);
           const midi = yueqin.midiFor(note.string, note.fret, note.octaveShift);
           const voice = pluck(midiToFreq(midi), { sustain: true, destination: getInstrumentGain('yueqin') });
-          activeSongSustainVoices.push(voice);
+          const activeVoice = { voice, note };
+          activeSongSustainVoices.push(activeVoice);
+          sendRelay('yueqin', {
+            string: note.string,
+            fret: note.fret,
+            octaveShift: note.octaveShift,
+            articulation: 'tremolo',
+          });
           const capMs = TREMOLO_MAX_MS_MIN + Math.random() * (TREMOLO_MAX_MS_MAX - TREMOLO_MAX_MS_MIN);
           const stopMs = note.exact ? note.duration * 1000 : Math.min(note.duration * 1000, capMs);
           const stopTimeout = setTimeout(() => {
             voice.stop();
-            activeSongSustainVoices = activeSongSustainVoices.filter((v) => v !== voice);
+            sendRelay('yueqin', { string: note.string, fret: note.fret, released: true });
+            activeSongSustainVoices = activeSongSustainVoices.filter((entry) => entry !== activeVoice);
           }, stopMs);
           activeSongTimeouts.push(stopTimeout);
         } else {
@@ -446,14 +457,17 @@
 
   function armTremolo(noteId, rowId, fret, { attack = false } = {}) {
     if (sustainVoices[noteId]) return;
-    const midi = yueqin.midiFor(rowId, fret);
+    const octaveShift = yueqin.getOctaveShift();
+    const midi = yueqin.midiFor(rowId, fret, octaveShift);
     const voice = pluck(midiToFreq(midi), { sustain: true, attack, destination: getInstrumentGain('yueqin') });
     sustainVoices[noteId] = voice;
+    sendRelay('yueqin', { string: rowId, fret, octaveShift, articulation: 'tremolo' });
     const maxMs = TREMOLO_MAX_MS_MIN + Math.random() * (TREMOLO_MAX_MS_MAX - TREMOLO_MAX_MS_MIN);
     maxDurationTimers[noteId] = setTimeout(() => {
       if (sustainVoices[noteId] !== voice) return;
       voice.stop();
       delete sustainVoices[noteId];
+      sendRelay('yueqin', { string: rowId, fret, released: true });
     }, maxMs);
   }
 
@@ -490,7 +504,10 @@
     const info = heldNoteInfo[noteId];
     heldKeys.delete(noteId);
     delete heldNoteInfo[noteId];
-    if (info) yueqin.setFretLit(info.string, info.fret, false);
+    if (info) {
+      yueqin.setFretLit(info.string, info.fret, false);
+      sendRelay('yueqin', { string: info.string, fret: info.fret, released: true });
+    }
     clearTimeout(maxDurationTimers[noteId]);
     delete maxDurationTimers[noteId];
     if (quickVoices[noteId]) {
@@ -527,43 +544,49 @@
     [...heldKeys].forEach(releaseKey);
   }
 
-  // Re-wire the rendered frets' pointer events to go through this file's
-  // pressNote/releaseKey (tremolo-aware) instead of the factory's default
-  // quick-pluck-only pressNote — re-render now that our own handlers exist.
+  // Reuse the factory renderer while substituting this instrument's
+  // tremolo-aware press/release handlers. This keeps DOM, pointer capture,
+  // and keyboard accessibility behavior in one shared implementation.
   function renderWithTremolo() {
-    for (const row of yueqin.rows) {
-      const container = cardEl.querySelector(`[data-row="${row.id}"]`);
-      container.innerHTML = '';
-      for (let fret = 0; fret < FRET_COUNT; fret++) {
-        const midi = yueqin.midiFor(row.id, fret);
-        const div = document.createElement('div');
-        div.className = 'fret' + (isPentatonicYueqin(midi) ? ' scale-note' : '');
-        div.dataset.fret = String(fret);
-        div.innerHTML = `<span class="key">${row.keys[fret]}</span><span class="note">${midiToName(midi)}</span>`;
-        const noteId = `ptr:yueqin:${row.id}:${fret}`;
-        div.addEventListener('pointerdown', (e) => {
-          e.preventDefault();
-          pressNote(noteId, row.id, fret);
-        });
-        div.addEventListener('pointerup', () => releaseKey(noteId));
-        div.addEventListener('pointerleave', () => releaseKey(noteId));
-        div.addEventListener('pointercancel', () => releaseKey(noteId));
-        container.appendChild(div);
-      }
-    }
+    yueqin.render({ onPress: pressNote, onRelease: releaseKey });
   }
-
-  function isPentatonicYueqin(midi) {
-    const diff = ((midi % 12) - (55 % 12) + 12) % 12;
-    return [0, 2, 4, 7, 9].includes(diff);
-  }
-
-  yueqin.setOctaveShift = ((original) => (shift) => {
-    original(shift);
-    renderWithTremolo();
-  })(yueqin.setOctaveShift);
 
   registerInstrument('yueqin', cardEl, { onKeyDown, onKeyUp, onBlur });
+
+  // The generic relay handler understands ordinary fretted notes. Yueqin
+  // additionally carries an articulation so remote tremolo uses the same
+  // continuous re-excitation model instead of degrading into a quick pluck.
+  const remoteVoices = {};
+  const remoteHeld = new Set();
+  function playRemoteYueqin(msg) {
+    const key = `${msg.senderId}:${msg.string}:${msg.fret}`;
+    if (msg.released) {
+      remoteHeld.delete(key);
+      remoteVoices[key]?.stop();
+      delete remoteVoices[key];
+      return;
+    }
+
+    ensureAudio();
+    remoteHeld.add(key);
+    remoteVoices[key]?.stop(0.03);
+    yueqin.lightUpFret(msg.string, msg.fret);
+    const voicePromise = msg.articulation === 'tremolo'
+      ? Promise.resolve(
+          pluck(midiToFreq(yueqin.midiFor(msg.string, msg.fret, msg.octaveShift)), {
+            sustain: true,
+            destination: getInstrumentGain('yueqin'),
+          })
+        )
+      : yueqin.playNote(msg.string, msg.fret, msg.octaveShift, { doBroadcast: false, momentaryLight: false });
+
+    voicePromise.then((voice) => {
+      if (!voice) return;
+      if (remoteHeld.has(key)) remoteVoices[key] = voice;
+      else voice.stop(0.05);
+    });
+  }
+  registerRelayHandler('yueqin', playRemoteYueqin);
 
   renderWithTremolo();
   renderSongs();

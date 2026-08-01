@@ -194,6 +194,12 @@ h1 span {
   transform: scale(0.95);
 }
 
+.fret:focus-visible,
+.pad:focus-visible {
+  outline: 2px solid var(--lit);
+  outline-offset: 2px;
+}
+
 /* Tutorial mode's "play this next" hint bar — a small steady glowing bar
    floating just above the fret, positioned via JS coordinates rather than
    attached to the fret itself (a fret-attached pseudo-element perturbed
