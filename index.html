@@ -26,6 +26,10 @@
     <button class="song-btn" id="looper-download">Download loop</button>
     <button class="song-btn" id="looper-clear">Clear loop</button>
     <span class="brightness-label" id="looper-status">looper: idle</span>
+    <label class="brightness-label">
+      room
+      <input type="range" id="reverb-slider" min="0" max="100" value="18" />
+    </label>
   </div>
   <div class="tone-controls saved-loops" id="saved-loops"></div>
 
@@ -67,7 +71,7 @@
         </label>
         <label class="brightness-label">
           volume
-          <input type="range" class="volume-slider" data-instruments="yueqin" min="0" max="100" value="100" />
+          <input type="range" class="volume-slider" data-instruments="yueqin" min="0" max="100" value="25" />
         </label>
       </div>
       <div class="tone-controls">
@@ -96,7 +100,7 @@
       <div class="tone-controls">
         <label class="brightness-label">
           volume
-          <input type="range" class="volume-slider" data-instruments="erhu,erhu-fx,erhu-expressive" min="0" max="100" value="100" />
+          <input type="range" class="volume-slider" data-instruments="erhu,erhu-fx,erhu-expressive" min="0" max="100" value="25" />
         </label>
       </div>
       <div class="pad-panel">
@@ -121,7 +125,7 @@
         <button class="song-btn vibrato-toggle">vibrato: off</button>
         <label class="brightness-label">
           volume
-          <input type="range" class="volume-slider" data-instruments="dizi" min="0" max="100" value="100" />
+          <input type="range" class="volume-slider" data-instruments="dizi" min="0" max="100" value="25" />
         </label>
       </div>
       <p class="hint">14 real recorded notes (A5–G7, natural pitches only). Hold a key to sustain, release to stop.</p>
@@ -136,7 +140,7 @@
       <div class="tone-controls">
         <label class="brightness-label">
           volume
-          <input type="range" class="volume-slider" data-instruments="bangu" min="0" max="100" value="100" />
+          <input type="range" class="volume-slider" data-instruments="bangu" min="0" max="100" value="25" />
         </label>
       </div>
     </div>
@@ -151,19 +155,19 @@
     <div class="tone-controls">
       <label class="brightness-label">
         volume
-        <input type="range" class="volume-slider" data-instruments="cricket" min="0" max="100" value="100" />
+        <input type="range" class="volume-slider" data-instruments="cricket" min="0" max="100" value="25" />
       </label>
     </div>
   </div>
 
-  <script src="core.js?v=18"></script>
+  <script src="core.js?v=20"></script>
   <script src="yueqin.js?v=5"></script>
   <script src="erhu.js?v=13"></script>
   <script src="dizi.js?v=5"></script>
   <script src="bangu.js?v=10"></script>
   <script src="cricket.js?v=2"></script>
-  <script src="song-spring-river.js?v=5"></script>
+  <script src="song-spring-river.js?v=7"></script>
   <script src="looper.js?v=2"></script>
-  <script src="volume-controls.js?v=1"></script>
+  <script src="volume-controls.js?v=2"></script>
 </body>
 </html>

@@ -5,6 +5,23 @@
 // people are playing different instruments live at once via the relay.
 let ctx = null;
 let masterBus = null;
+let reverbSend = null;
+
+// Plain exponential-decay noise, not a recorded impulse-response asset —
+// same "generate it, don't fetch/ship a binary" approach as the rest of
+// this project. Two channels so the tail doesn't collapse to mono.
+function createReverbImpulse(context, duration = 2.2, decay = 3.2) {
+  const rate = context.sampleRate;
+  const length = Math.floor(rate * duration);
+  const impulse = context.createBuffer(2, length, rate);
+  for (let channel = 0; channel < 2; channel++) {
+    const data = impulse.getChannelData(channel);
+    for (let i = 0; i < length; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** decay;
+    }
+  }
+  return impulse;
+}
 
 function ensureAudio() {
   if (!ctx) {
@@ -23,6 +40,27 @@ function ensureAudio() {
     compressor.connect(masterGain);
     masterGain.connect(ctx.destination);
     masterBus = compressor;
+
+    // Shared reverb send: the ensemble is part synthesized (yueqin) and
+    // part sampled from several unrelated source libraries, each recorded
+    // in its own room (or no room at all). None of that shares an acoustic
+    // space on its own, which is a real chunk of why the mix reads as
+    // disparate voices rather than one quartet. Every instrument gain taps
+    // a bit of its dry signal into this one shared "room" below; a lowpass
+    // on the return tames the raw-noise brightness a synthetic impulse
+    // otherwise has (real rooms damp highs faster than flat noise decay
+    // does). Kept subtle on purpose — too much wet and tremolo/fast
+    // passages smear.
+    reverbSend = ctx.createGain();
+    reverbSend.gain.value = 0.18;
+    const reverbTone = ctx.createBiquadFilter();
+    reverbTone.type = 'lowpass';
+    reverbTone.frequency.value = 5500;
+    const reverb = ctx.createConvolver();
+    reverb.buffer = createReverbImpulse(ctx);
+    reverbSend.connect(reverbTone);
+    reverbTone.connect(reverb);
+    reverb.connect(compressor);
   }
   if (ctx.state === 'suspended') ctx.resume();
 }
@@ -525,8 +563,9 @@ const instrumentGains = {};
 function getInstrumentGain(id) {
   if (!instrumentGains[id]) {
     const gain = ctx.createGain();
-    gain.gain.value = 1;
+    gain.gain.value = 0.25; // matches each volume slider's default position (1/4 up)
     gain.connect(masterBus);
+    if (reverbSend) gain.connect(reverbSend);
     instrumentGains[id] = gain;
   }
   return instrumentGains[id];

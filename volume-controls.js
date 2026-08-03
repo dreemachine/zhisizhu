@@ -12,4 +12,13 @@
       ids.forEach((id) => setInstrumentVolume(id, value));
     });
   });
+
+  // Shared "room" control — one global send level into the reverb bus
+  // set up in core.js, not per-instrument, so it lives here rather than
+  // needing a data-instruments target of its own.
+  const reverbSlider = document.getElementById('reverb-slider');
+  reverbSlider?.addEventListener('input', () => {
+    ensureAudio();
+    if (reverbSend) reverbSend.gain.value = Number(reverbSlider.value) / 100;
+  });
 })();
