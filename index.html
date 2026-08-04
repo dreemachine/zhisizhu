@@ -42,6 +42,10 @@
     <button class="song-btn" id="ensemble-song-toggle">▶ Spring Comes to Xiang River (quartet)</button>
     <span class="brightness-label">at the recording's own tempo — a reference for what the arrangement sounds like, not the (separate) practice/tutorial mode</span>
   </div>
+  <div class="tone-controls ensemble-controls">
+    <button class="song-btn" id="molihua-song-toggle">▶ Mo Li Hua (quartet)</button>
+    <span class="brightness-label">opening hook only, drafted from the well-known tune from memory — not checked against a specific recording yet</span>
+  </div>
 
   <div class="instrument-grid">
 
@@ -95,12 +99,16 @@
           <div class="string-label">D4–A5</div>
           <div class="frets" data-row="main"></div>
         </div>
+        <div class="string-row">
+          <div class="string-label">D3–Db4 (click/tap only)</div>
+          <div class="frets" data-row="low"></div>
+        </div>
       </div>
-      <p class="hint">Full chromatic range, real sustained notes (CC0 sfzinstruments pack) — hold a fret to sustain, release to stop.</p>
+      <p class="hint">Full chromatic range, real sustained notes — hold a fret to sustain, release to stop. D3–Db4 row is a freshly recorded vibrato take (2026-08-03); D4-Eb5 on the main row were replaced with the same take, E5-A5 above that are still the original CC0 sfzinstruments pack.</p>
       <div class="tone-controls">
         <label class="brightness-label">
           volume
-          <input type="range" class="volume-slider" data-instruments="erhu,erhu-fx,erhu-expressive" min="0" max="100" value="25" />
+          <input type="range" class="volume-slider" data-instruments="erhu,erhu-low,erhu-fx,erhu-expressive" min="0" max="100" value="25" />
         </label>
       </div>
       <div class="pad-panel">
@@ -136,7 +144,7 @@
       <div class="pad-panel">
         <div class="pads"></div>
       </div>
-      <p class="hint">Real dagu (bass drum), temple blocks, snare, bangu clapper drum, naobo cymbals, gong, and rattle drum. Hold gong/naobo/rattle to let them ring, release to choke them.</p>
+      <p class="hint">Hold gong/naobo/rattle to let them ring, release to choke them.</p>
       <div class="tone-controls">
         <label class="brightness-label">
           volume
@@ -160,13 +168,14 @@
     </div>
   </div>
 
-  <script src="core.js?v=20"></script>
+  <script src="core.js?v=21"></script>
   <script src="yueqin.js?v=5"></script>
-  <script src="erhu.js?v=13"></script>
+  <script src="erhu.js?v=14"></script>
   <script src="dizi.js?v=5"></script>
   <script src="bangu.js?v=10"></script>
   <script src="cricket.js?v=2"></script>
   <script src="song-spring-river.js?v=7"></script>
+  <script src="song-mo-li-hua.js?v=1"></script>
   <script src="looper.js?v=2"></script>
   <script src="volume-controls.js?v=2"></script>
 </body>

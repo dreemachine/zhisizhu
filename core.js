@@ -677,7 +677,8 @@ function createFrettedInstrument(config) {
         div.dataset.fret = String(fret);
         div.setAttribute('role', 'button');
         div.tabIndex = 0;
-        div.setAttribute('aria-label', `${row.label || row.id} ${midiToName(midi)}; keyboard key ${row.keys[fret]}`);
+        const keyLabel = row.keys[fret];
+        div.setAttribute('aria-label', `${row.label || row.id} ${midiToName(midi)}${keyLabel ? `; keyboard key ${keyLabel}` : ''}`);
         div.innerHTML = `<span class="key">${row.keys[fret]}</span><span class="note">${midiToName(midi)}</span>`;
         const noteId = `ptr:${id}:${row.id}:${fret}`;
         div.addEventListener('pointerdown', (e) => {

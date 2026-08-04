@@ -54,6 +54,33 @@
     broadcast: true,
   });
 
+  // Second, lower row (D3-Db4) — real vibrato-take recordings from a fresh
+  // MIDI sweep (2026-08-03), extending below the main grid's D4 floor.
+  // Separate registration rather than folded into 'main' because fretCount
+  // is shared across all rows in one createFrettedInstrument call; a
+  // second call keeps this row's real 12-note length independent of main's
+  // 20. manualWiring since 'main' already owns this card's keyboard focus —
+  // click/tap only, same pattern as the FX/expressive pad boards below.
+  const erhuLow = createFrettedInstrument({
+    id: 'erhu-low',
+    cardEl: document.getElementById('card-erhu'),
+    rows: [
+      {
+        id: 'low',
+        label: 'low strings',
+        base: 50, // D3
+        keys: ['', '', '', '', '', '', '', '', '', '', '', ''],
+        wrapAfter: 6,
+      },
+    ],
+    fretCount: 12,
+    tonicMidi: 62,
+    sampleLoader,
+    broadcast: true,
+    manualWiring: true,
+  });
+  erhuLow.render();
+
   const fxPads = [
     { id: 'D4', key: '1', label: 'D4 (accented)', sampleKey: 'D4' },
     { id: 'F4', key: '2', label: 'F4 (accented)', sampleKey: 'F4' },

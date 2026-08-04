@@ -90,30 +90,39 @@ function padIds(relativePath) {
   return ids;
 }
 
+const ARRANGEMENT_FILES = ['song-spring-river.js', 'song-mo-li-hua.js'];
+
 function validateArrangement() {
-  const song = read('song-spring-river.js');
   const diziIds = padIds('dizi.js');
   const banguIds = padIds('bangu.js');
   const erhuIds = padIds('erhu.js');
 
-  for (const id of matches(song, /diziPad(?:Vibrato)?\('([^']+)'\)/g)) {
-    if (!diziIds.has(id)) fail(`song-spring-river.js: dizi pad "${id}" does not exist`);
-  }
-  for (const id of matches(song, /banguPad\('([^']+)'\)/g)) {
-    if (!banguIds.has(id)) fail(`song-spring-river.js: bangu pad "${id}" does not exist`);
-  }
-  for (const id of matches(song, /erhuExpressive\.playPad\('([^']+)'\)/g)) {
-    if (!erhuIds.has(id)) fail(`song-spring-river.js: erhu expressive pad "${id}" does not exist`);
+  for (const file of ARRANGEMENT_FILES) {
+    const song = read(file);
+
+    for (const id of matches(song, /diziPad(?:Vibrato)?\('([^']+)'\)/g)) {
+      if (!diziIds.has(id)) fail(`${file}: dizi pad "${id}" does not exist`);
+    }
+    for (const id of matches(song, /banguPad\('([^']+)'\)/g)) {
+      if (!banguIds.has(id)) fail(`${file}: bangu pad "${id}" does not exist`);
+    }
+    for (const id of matches(song, /erhuExpressive\.playPad\('([^']+)'\)/g)) {
+      if (!erhuIds.has(id)) fail(`${file}: erhu expressive pad "${id}" does not exist`);
+    }
+
+    for (const fret of matches(song, /erhuNote\((\d+)\)/g).map(Number)) {
+      if (fret < 0 || fret >= 20) fail(`${file}: erhu fret ${fret} is outside 0-19`);
+    }
+    for (const fret of matches(song, /yq(?:Low|High)\((\d+)/g).map(Number)) {
+      if (fret < 0 || fret >= 12) fail(`${file}: yueqin fret ${fret} is outside 0-11`);
+    }
   }
 
-  for (const fret of matches(song, /erhuNote\((\d+)\)/g).map(Number)) {
-    if (fret < 0 || fret >= 20) fail(`song-spring-river.js: erhu fret ${fret} is outside 0-19`);
-  }
-  for (const fret of matches(song, /yq(?:Low|High)\((\d+)/g).map(Number)) {
-    if (fret < 0 || fret >= 12) fail(`song-spring-river.js: yueqin fret ${fret} is outside 0-11`);
-  }
-
-  if (!song.includes("instrumentAPIs['erhu-expressive']")) {
+  // Specific to song-spring-river.js: its E5 vibrato cue broke once already
+  // (see docs/reliability-pass-2026-07-31.md) by pointing at the wrong
+  // board id, so this arrangement in particular is checked to keep
+  // resolving vibrato through erhu-expressive rather than erhu-fx.
+  if (!read('song-spring-river.js').includes("instrumentAPIs['erhu-expressive']")) {
     fail('song-spring-river.js: arrangement must resolve vibrato notes through erhu-expressive');
   }
 }
