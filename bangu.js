@@ -19,7 +19,7 @@
   const pads = [
     { id: 'rattle', key: 't', label: 'Rattle', sampleKey: 'rattle' },
     { caption: 'rattle drum' },
-    { id: 'snare', key: '4', label: 'Snare', sampleKey: 'snare' },
+    { id: 'snare', key: '4', label: 'Snare', sampleKey: 'snare', roll: true },
     { caption: 'snare drum' },
     { id: 'bangu-clap-sharp', key: 'q', label: 'Bangu (sharp)', sampleKey: 'bangu-clap-sharp' },
     { id: 'bangu-clap', key: '0', label: 'Bangu', sampleKey: 'bangu-clap' },

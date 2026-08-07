@@ -560,12 +560,17 @@ function createSampleLoader(baseUrl) {
 // can't be set up until an instrument actually plays something).
 const instrumentGains = {};
 
+// Cricket's short, dry vocal-style hits read as mushy/distant with room
+// glue on them (dree's ear) — kept out of the shared reverb bus while
+// every musical instrument still shares it.
+const NO_REVERB_INSTRUMENTS = new Set(['cricket']);
+
 function getInstrumentGain(id) {
   if (!instrumentGains[id]) {
     const gain = ctx.createGain();
     gain.gain.value = 0.25; // matches each volume slider's default position (1/4 up)
     gain.connect(masterBus);
-    if (reverbSend) gain.connect(reverbSend);
+    if (reverbSend && !NO_REVERB_INSTRUMENTS.has(id)) gain.connect(reverbSend);
     instrumentGains[id] = gain;
   }
   return instrumentGains[id];
@@ -892,6 +897,9 @@ function createPadInstrument(config) {
     }
 
     for (const pad of pads) {
+      // hidden pads exist only so playPad/pressPad can address them by id
+      // (e.g. a holdFollowUp target) — no button, not part of the layout.
+      if (pad.hidden) continue;
       if (pad.break) {
         flush();
         const spacer = document.createElement('div');
@@ -955,6 +963,8 @@ function createPadInstrument(config) {
   const heldKeys = new Set();
   const heldPadInfo = {};
   const quickVoices = {};
+  const rollTimers = {};
+  const holdFollowTimers = {};
 
   // A pad's sampleKey can be a plain string, or { default: '...', <variant>:
   // '...' } to offer an alternate take selectable via setVariant/toggleVariant
@@ -1010,6 +1020,26 @@ function createPadInstrument(config) {
       if (heldKeys.has(noteId)) quickVoices[noteId] = voice;
       else voice.stop(0.05);
     });
+    // roll pads (e.g. a snare) re-trigger the sample on a fast interval for
+    // as long as they're held, instead of just ringing out one hit — a
+    // single sample can't be "drilled" by clicking fast enough by hand, so
+    // this is the held-repeat equivalent of a real rudimental roll. Each
+    // tick is its own broadcast pad event (playPad already sends one), so
+    // remote listeners hear the same roll, not just the initial hit.
+    if (pad?.roll) {
+      rollTimers[noteId] = setInterval(() => {
+        playPad(padId, { momentaryLight: false });
+      }, pad.rollIntervalMs ?? 70);
+    }
+    // holdFollowUp: if still held after a short delay, play a second
+    // (usually hidden) pad once — a quick tap only gets the one hit, a
+    // hold gets the follow-up too. Different from roll: fires once, not
+    // repeatedly.
+    if (pad?.holdFollowUp) {
+      holdFollowTimers[noteId] = setTimeout(() => {
+        if (heldKeys.has(noteId)) playPad(pad.holdFollowUp, { momentaryLight: false });
+      }, pad.holdFollowUpDelayMs ?? 180);
+    }
   }
 
   function releasePad(noteId) {
@@ -1024,6 +1054,14 @@ function createPadInstrument(config) {
     if (quickVoices[noteId]) {
       quickVoices[noteId].stop();
       delete quickVoices[noteId];
+    }
+    if (rollTimers[noteId]) {
+      clearInterval(rollTimers[noteId]);
+      delete rollTimers[noteId];
+    }
+    if (holdFollowTimers[noteId]) {
+      clearTimeout(holdFollowTimers[noteId]);
+      delete holdFollowTimers[noteId];
     }
   }
 
