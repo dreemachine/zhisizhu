@@ -995,7 +995,17 @@ function createPadInstrument(config) {
     if (momentaryLight) lightUpPad(padId);
     if (broadcast && doBroadcast) sendRelay(id, { pad: padId, variant: activeVariant });
 
-    const sampleKey = resolveSampleKey(pad, variant);
+    // randomAlt: a pad can occasionally substitute a different sample
+    // instead of its usual one — e.g. the tuned chirp row swapping in an
+    // unrelated chirp for a bit of unpredictability. Rolled independently
+    // on every client (including remote listeners via playRemote), so an
+    // ensemble isn't guaranteed to hear the exact same substitution at the
+    // exact same moment — acceptable for a random flavor touch, not worth
+    // the relay-protocol complexity of syncing the roll itself.
+    let sampleKey = resolveSampleKey(pad, variant);
+    if (pad.randomAlt && Math.random() < pad.randomAlt.chance) {
+      sampleKey = pad.randomAlt.sampleKey;
+    }
     if (sampleKey && sampleLoader) {
       await sampleLoader.ready;
       const buf = await sampleLoader.getBuffer(sampleKey);

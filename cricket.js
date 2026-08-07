@@ -26,8 +26,8 @@
     { id: 'crick-11', key: ';', label: 'hmm?', sampleKey: 'crick-11' },
     { id: 'crick-12', key: "'", label: 'omg', sampleKey: 'crick-12' },
     { break: true },
-    // Third row: the same plain chirp, pitch-shifted to 7 different notes
-    // (re-mi-fa-sol-la-ti-do', an ascending major-scale run) via a simple
+    // Third row: the same plain chirp, pitch-shifted to 8 different notes
+    // (do-re-mi-fa-sol-la-si-do', a full ascending octave) via a simple
     // playback-rate change (asetrate/aresample) — real rendered files, not
     // a live pitch-shift, so they cost nothing extra at play time.
     // Testing on chirp-pitch-1 only for now: sample itself is a real
@@ -37,13 +37,22 @@
     // earlier holdFollowUp attempt. Pad isn't oneShot, so the existing
     // hold/release behavior (same as naobo-soft/rattle) does the rest: hold
     // to let it play out, release early to cut it short.
-    { id: 'chirp-pitch-1', key: '1', label: 'chirp (re)', sampleKey: 'chirp-pitch-1-extended' },
-    { id: 'chirp-pitch-2', key: '2', label: 'chirp (mi)', sampleKey: 'chirp-pitch-2' },
-    { id: 'chirp-pitch-3', key: '3', label: 'chirp (fa)', sampleKey: 'chirp-pitch-3' },
-    { id: 'chirp-pitch-4', key: '4', label: 'chirp (sol)', sampleKey: 'chirp-pitch-4' },
-    { id: 'chirp-pitch-5', key: '5', label: 'chirp (la)', sampleKey: 'chirp-pitch-5' },
-    { id: 'chirp-pitch-6', key: '6', label: 'chirp (ti)', sampleKey: 'chirp-pitch-6' },
-    { id: 'chirp-pitch-7', key: '7', label: "chirp (do')", sampleKey: 'chirp-pitch-7' },
+    // ~30% of the time, any of these plays chirp-alt (the first chirp cut
+    // out of chirpitychirp.mp3) instead of its usual tuned pitch — a bit of
+    // wildcard unpredictability, per dree's ask. Each pad's randomAlt is its
+    // OWN pitch-matched render of chirp-alt (chirp-alt-0 through -7, same
+    // asetrate treatment as the main chirp-pitch set), not one shared flat
+    // pitch — the substitution should still land on that scale degree, not
+    // clash with it. chirp-pitch-0 (do, a whole step below re) completes
+    // the full 8-key octave.
+    { id: 'chirp-pitch-0', key: '0', label: 'chirp (do)', sampleKey: 'chirp-pitch-0', randomAlt: { sampleKey: 'chirp-alt-0', chance: 0.3 } },
+    { id: 'chirp-pitch-1', key: '1', label: 'chirp (re)', sampleKey: 'chirp-pitch-1-extended', randomAlt: { sampleKey: 'chirp-alt-1', chance: 0.3 } },
+    { id: 'chirp-pitch-2', key: '2', label: 'chirp (mi)', sampleKey: 'chirp-pitch-2', randomAlt: { sampleKey: 'chirp-alt-2', chance: 0.3 } },
+    { id: 'chirp-pitch-3', key: '3', label: 'chirp (fa)', sampleKey: 'chirp-pitch-3', randomAlt: { sampleKey: 'chirp-alt-3', chance: 0.3 } },
+    { id: 'chirp-pitch-4', key: '4', label: 'chirp (sol)', sampleKey: 'chirp-pitch-4', randomAlt: { sampleKey: 'chirp-alt-4', chance: 0.3 } },
+    { id: 'chirp-pitch-5', key: '5', label: 'chirp (la)', sampleKey: 'chirp-pitch-5', randomAlt: { sampleKey: 'chirp-alt-5', chance: 0.3 } },
+    { id: 'chirp-pitch-6', key: '6', label: 'chirp (si)', sampleKey: 'chirp-pitch-6', randomAlt: { sampleKey: 'chirp-alt-6', chance: 0.3 } },
+    { id: 'chirp-pitch-7', key: '7', label: "chirp (do')", sampleKey: 'chirp-pitch-7', randomAlt: { sampleKey: 'chirp-alt-7', chance: 0.3 } },
   ];
 
   createPadInstrument({

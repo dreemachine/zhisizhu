@@ -10,9 +10,9 @@
   const FRET_COUNT = 12; // open string + 11 frets = one octave
 
   // --- audio: live-adjustable tone controls (for A/B-ing by ear) ---
-  let plateMode = 'harmonic';
-  let brightness = 0; // 0-1
-  let plateAmount = 1; // multiplier on the metallic layers' amount, 0 = off
+  let plateMode = 'inharmonic';
+  let brightness = 0.5; // 0-1
+  let plateAmount = 0.38; // multiplier on the metallic layers' amount, 0 = off
 
   const PLATE_RATIOS = {
     harmonic: [
