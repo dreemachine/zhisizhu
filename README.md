@@ -7,10 +7,10 @@ The deployed site is configured for `zhisizhu.dreemachine.com` through `CNAME`.
 ## Instruments
 
 - **Yueqin:** Karplus-Strong plucked-string synthesis with modeled internal metal-plate resonance, octave control, tremolo, songs, and self-paced tutorials.
-- **Erhu:** A chromatic D4-A5 grid of real sustained samples plus expressive vibrato and an optional FX/articulation board.
+- **Erhu:** A chromatic D4-A5 grid of real sustained samples, a second D3-Db4 row (click/tap only) extending the range down, plus expressive vibrato and an optional FX/articulation board.
 - **Dizi:** Natural notes from A5-G7 with normal and vibrato recordings.
-- **Hide, wood, and metal:** Dagu, bangu, temple blocks, naobo, gong, snare, and rattle drum samples.
-- **Cricket:** A small character-oriented expressive sample board.
+- **Hide, wood, and metal:** Dagu, bangu, temple blocks, naobo, gong, snare (holdable roll), and rattle drum samples.
+- **Cricket:** A character-oriented expressive sample board — real cricket recordings plus a tuned 8-note chirp row with occasional random substitutions.
 
 Click an instrument card to give its physical keyboard mapping focus. Frets and pads also support pointer/touch and keyboard focus with Enter or Space.
 
@@ -49,6 +49,10 @@ The looper records musical events rather than compressed audio, preserving exact
 
 Loop playback is tagged so it cannot recursively record itself during overdubbing. Saved loops remain in memory for the lifetime of the tab. Audio download records one clean loop cycle from the shared master bus.
 
+## Mix
+
+Every instrument's volume slider defaults to 1/4 up. A shared, generated (not recorded) reverb glues the synthesized yueqin and the several unrelated sample libraries into one perceived room — its send level is the "room" slider, independent of per-instrument volume. Cricket is excluded from the shared reverb (short dry hits read as mushy with room glue on them).
+
 ## Project structure
 
 ```text
@@ -60,7 +64,8 @@ erhu.js                    Erhu grid and articulation boards
 dizi.js                    Dizi note and vibrato mappings
 bangu.js                   Chinese percussion mappings
 cricket.js                 Cricket expression board
-song-spring-river.js       Multi-instrument quartet arrangement
+song-spring-river.js       Multi-instrument quartet arrangement (pYIN-verified)
+song-mo-li-hua.js          Quartet arrangement, opening hook (melody unverified — see docs/maintenance.md)
 looper.js                  Looper controls and status UI
 volume-controls.js         Per-instrument volume controls
 samples/                   Deployable sample assets and manifests

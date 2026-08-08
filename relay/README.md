@@ -19,17 +19,23 @@ The default endpoint is `ws://localhost:8765`. Set the `PORT` environment variab
 The local endpoint is not internet-accessible. One option is an ngrok tunnel:
 
 1. Install ngrok, create an account, and configure its authentication token.
-2. Reserve a static domain if you want the same URL each session.
-3. Start the relay.
-4. Start the tunnel, for example:
+2. Start the relay.
+3. Start the tunnel in its own terminal (needs to stay running alongside the relay's):
 
    ```powershell
-   ngrok http 8765 --domain=dree-yueqin.ngrok-free.app
+   ngrok http 8765
    ```
 
-5. Enter the resulting `wss://` URL in every player's relay field and press **connect**.
-6. Open the relay log on both sides when diagnosing send/receive behavior.
-7. Stop both ngrok and the relay when the session ends.
+   Custom-named domains (the `--domain=your-chosen-name` flag) require a paid
+   ngrok plan as of 2026-08. But every free account also gets one
+   auto-assigned "dev domain" (something like
+   `launch-shredder-careless.ngrok-free.dev`) that's permanently tied to that
+   account and stays the same across restarts — no flag needed, ngrok just
+   reuses it. Check once with `ngrok http 8765` and that domain is the one to
+   keep reusing every session.
+4. Enter the resulting `wss://` URL in every player's relay field and press **connect**.
+5. Open the relay log on both sides when diagnosing send/receive behavior.
+6. Stop both ngrok and the relay when the session ends.
 
 Treat the tunnel URL as session access: the relay does not authenticate users. Do not leave it running as a general public service.
 

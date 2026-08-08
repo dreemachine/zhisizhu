@@ -11,6 +11,20 @@ Instrument modules register two surfaces with `core.js`:
 
 Only one card owns physical-keyboard focus at a time. Pointer/touch activation remains independent of card focus. Frets and pads are also focusable controls; Enter and Space press and release the focused control.
 
+A card can host more than one `createFrettedInstrument`/`createPadInstrument` registration (erhu's card has four: the main grid, the low row, the FX board, and the expressive/vibrato row). `fretCount` and `keys` are shared across every row within one `createFrettedInstrument` call, so a row with a genuinely different real length (e.g. erhu-low's 12 frets vs. main's 20) needs its own separate registration, not a second row in the same call. Every registration after the first on a shared card sets `manualWiring: true` (click/tap only, no keyboard focus) and must call its own `render()` since manualWiring skips the automatic one.
+
+Every instrument gain node defaults to 0.25 (matches each volume slider's default position, 1/4 up) and also feeds a shared reverb send unless its id is in `NO_REVERB_INSTRUMENTS` (currently just `cricket` — short dry hits read as mushy with room glue on them). The reverb itself is a generated exponential-decay-noise impulse through a `ConvolverNode`, not a recorded IR file, with a lowpass on the return to tame the raw-noise brightness. Its send level is user-controllable via the "room" slider (`#reverb-slider`), independent of the per-instrument volume sliders.
+
+### Pad instrument primitives
+
+Beyond the base press/hold/release/oneShot behavior, individual pads in a `createPadInstrument` config can opt into three generic, reusable behaviors (all implemented once in `core.js`, not per-instrument):
+
+- **`roll: true`** — retriggers the sample on a fixed interval (`rollIntervalMs`, default 70ms) for as long as the pad is held, instead of ringing one hit. Used by bangu's snare (a single sample can't be "drilled" by clicking fast enough by hand). Each tick is its own broadcast pad event, so remote listeners hear the same roll.
+- **`holdFollowUp: 'other-pad-id'`** — if still held after a delay (`holdFollowUpDelayMs`, default 180ms), plays a second pad once. Fires once, not repeatedly, unlike `roll`. Built for a cricket experiment (auto-following a chirp with a slowed-down second one) that didn't work out in practice — dree wanted one cohesive extended clip instead, which the plain hold/release mechanism already provides given a longer source sample. Left in `core.js` as a working, reusable primitive since it cost nothing to keep.
+- **`randomAlt: { sampleKey: 'alt-key', chance: 0.3 }`** — on each play, has a chance of substituting a different sample instead of the pad's usual one. Rolled independently by every client, including remote listeners receiving the event via `playRemote` — an ensemble is not guaranteed to hear the same substitution at the same moment, since syncing the roll itself over the relay wasn't judged worth the protocol complexity for a flavor touch. Used by cricket's tuned-chirp row, where each of the 8 notes has its own pitch-matched alternate (not one shared flat-pitched alternate) so the substitution still lands on the right scale degree.
+
+`render()` skips pads with `hidden: true` — no button, but still addressable by id (e.g. as a `holdFollowUp` target).
+
 ## Relay event protocol
 
 Every event is JSON text. `core.js` adds `senderId` and either `instrument` or `meta`.
@@ -95,6 +109,8 @@ Each instrument begins fetching its manifest at page load. The first user gestur
 A missing manifest or sample resolves to `null`; callers may fall back to synthesis. Do not change that failure behavior without adding visible error reporting, because silent optional-sample fallback is currently part of the instrument factory contract.
 
 ## Arrangement integrity
+
+Two arrangement files exist: `song-spring-river.js` (pYIN/onset-verified transcription) and `song-mo-li-hua.js` (opening hook only, melody drafted from memory of the standard tune — not verified against a recording or score, flagged in-file). `scripts/validate-project.js`'s arrangement checks run against both.
 
 `song-spring-river.js` resolves the E5 vibrato articulation through `erhu-expressive`, where the pad is registered. The project validator checks this API choice, all literal dizi/bangu/erhu expressive pad references, and yueqin/erhu fret bounds.
 
