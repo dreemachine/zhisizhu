@@ -109,6 +109,11 @@ h1 span {
   margin: 0 0 1rem;
   font-weight: 400;
   letter-spacing: 0.05em;
+  cursor: pointer;
+}
+
+.instrument-card.focused h2:hover {
+  color: var(--accent);
 }
 
 .instrument-card h2 span {

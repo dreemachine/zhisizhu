@@ -100,6 +100,22 @@ function registerInstrument(id, cardEl, handlers) {
   instruments[id] = { cardEl, ...handlers };
   cardEl.classList.add('instrument-card');
   cardEl.addEventListener('pointerdown', () => setFocus(id));
+
+  // The title is the one spot on the card that isn't a playable fret/pad, so
+  // it's the toggle for releasing keyboard focus (typing in chat, Discord,
+  // Foundry, etc. without triggering notes). Its own pointerdown is stopped
+  // from bubbling so it doesn't re-focus the instrument right before the
+  // click handler tries to un-focus it.
+  const titleEl = cardEl.querySelector('h2');
+  if (titleEl) {
+    titleEl.classList.add('instrument-title');
+    titleEl.title = 'Click to toggle this instrument’s keyboard focus';
+    titleEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+    titleEl.addEventListener('click', () => {
+      if (focusedId === id) clearFocus();
+      else setFocus(id);
+    });
+  }
 }
 
 function setFocus(id) {
@@ -107,6 +123,12 @@ function setFocus(id) {
   if (focusedId) instruments[focusedId]?.cardEl.classList.remove('focused');
   focusedId = id;
   instruments[id]?.cardEl.classList.add('focused');
+}
+
+function clearFocus() {
+  if (!focusedId) return;
+  instruments[focusedId]?.cardEl.classList.remove('focused');
+  focusedId = null;
 }
 
 window.addEventListener('keydown', (e) => {
