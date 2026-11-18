@@ -6,6 +6,17 @@
 let ctx = null;
 let masterBus = null;
 let reverbSend = null;
+let masterGain = null;
+const MASTER_LEVEL = 0.5;
+// Overall output scale (0–1) on top of MASTER_LEVEL. Only the Foundry embed
+// changes it — its launcher has one volume slider for every instrument window —
+// so the standalone site always runs at 1.
+let outputScale = 1;
+
+function setOutputScale(value) {
+  outputScale = Math.min(1, Math.max(0, Number(value) || 0));
+  if (masterGain) masterGain.gain.setTargetAtTime(MASTER_LEVEL * outputScale, ctx.currentTime, 0.02);
+}
 
 // Plain exponential-decay noise, not a recorded impulse-response asset —
 // same "generate it, don't fetch/ship a binary" approach as the rest of
@@ -34,8 +45,8 @@ function ensureAudio() {
     compressor.attack.value = 0.003;
     compressor.release.value = 0.25;
 
-    const masterGain = ctx.createGain();
-    masterGain.gain.value = 0.5;
+    masterGain = ctx.createGain();
+    masterGain.gain.value = MASTER_LEVEL * outputScale;
 
     compressor.connect(masterGain);
     masterGain.connect(ctx.destination);
@@ -188,6 +199,81 @@ function logRelay(line) {
   el.scrollTop = el.scrollHeight;
 }
 
+// --- Foundry VTT bridge ---
+// Inside Foundry (the zhisizhu-ensemble module loads this page in an iframe
+// with ?foundry=1), Foundry's own game socket replaces the WebSocket relay:
+// no relay server or ngrok tunnel is needed. This object imitates the small
+// part of the WebSocket API that connectRelay/sendRelay use (readyState,
+// send, close, open/message/close events) and passes the exact same JSON
+// text to the parent window, which forwards it to every other player's
+// Foundry client. Everything downstream — presence, looper taps, instrument
+// handlers — is unchanged.
+const FOUNDRY_RELAY = 'foundry';
+// Foundry serves .html files as text/plain, so the module can't point an
+// iframe at index.html; it loads the page through srcdoc instead, where
+// location.search is empty. It passes the same options as a global set
+// before this script runs.
+const EMBED_PARAMS = new URLSearchParams(window.zhisizhuEmbedParams ?? location.search);
+const IN_FOUNDRY = window.parent !== window && EMBED_PARAMS.has('foundry');
+
+function createFoundryBridgeSocket() {
+  const socket = new EventTarget();
+  socket.readyState = WebSocket.CONNECTING;
+  const onMessage = (e) => {
+    if (e.source !== window.parent || e.data?.zhisizhu !== 'relay') return;
+    if (socket.readyState !== WebSocket.OPEN || typeof e.data.message !== 'string') return;
+    socket.dispatchEvent(new MessageEvent('message', { data: e.data.message }));
+  };
+  window.addEventListener('message', onMessage);
+  socket.send = (text) => window.parent.postMessage({ zhisizhu: 'relay', message: text }, '*');
+  socket.close = () => {
+    if (socket.readyState === WebSocket.CLOSED) return;
+    socket.readyState = WebSocket.CLOSED;
+    window.removeEventListener('message', onMessage);
+    socket.dispatchEvent(new CloseEvent('close', { code: 1000 }));
+  };
+  // Open on the next tick so connectRelay has attached its listeners first.
+  setTimeout(() => {
+    if (socket.readyState !== WebSocket.CONNECTING) return;
+    socket.readyState = WebSocket.OPEN;
+    socket.dispatchEvent(new Event('open'));
+  }, 0);
+  return socket;
+}
+
+// ?only=<card> (yueqin, erhu, dizi, bangu, cricket) shows a single instrument
+// card and hides the shared header/relay/looper/quartet controls, so Foundry
+// can give each instrument its own small window. Injected here rather than
+// in style.css because it only applies to this embedded mode.
+const ONLY_CARD = EMBED_PARAMS.get('only');
+if (ONLY_CARD) {
+  const style = document.createElement('style');
+  style.textContent = `
+    .page-header, .relay-controls, .saved-loops, .relay-log-panel, .ensemble-controls { display: none !important; }
+    .instrument-card:not(#card-${CSS.escape(ONLY_CARD)}) { display: none !important; }
+    .instrument-grid { display: block !important; margin: 0 !important; }
+    html, body { overflow-x: hidden !important; }
+    body { margin: 0 !important; padding: 8px !important; }`;
+  document.head.appendChild(style);
+}
+
+if (IN_FOUNDRY) {
+  if (EMBED_PARAMS.has('volume')) setOutputScale(EMBED_PARAMS.get('volume'));
+  window.addEventListener('message', (e) => {
+    if (e.source === window.parent && e.data?.zhisizhu === 'volume') setOutputScale(e.data.value);
+  });
+  window.addEventListener('load', () => {
+    const input = document.getElementById('relay-url');
+    const button = document.getElementById('relay-connect');
+    if (input) {
+      input.value = 'Foundry (automatic)';
+      input.disabled = true;
+    }
+    if (button) button.hidden = true;
+    connectRelay(FOUNDRY_RELAY);
+  });
+}
+
 function connectRelay(url) {
   if (!url) return;
   const previousSocket = relaySocket;
@@ -197,7 +283,7 @@ function connectRelay(url) {
   updatePresenceDisplay();
   relayStatus('connecting…');
   logRelay(`connecting to ${url}…`);
-  const socket = new WebSocket(url);
+  const socket = url === FOUNDRY_RELAY ? createFoundryBridgeSocket() : new WebSocket(url);
   relaySocket = socket;
 
   // Every callback verifies that it still belongs to the current connection.
@@ -251,7 +337,8 @@ function connectRelay(url) {
     looperTap?.(msg.instrument, relayPayload(msg), { source: 'remote' });
     relayHandlers[msg.instrument]?.(msg);
   });
-  localStorage.setItem(RELAY_URL_KEY, url);
+  // Don't overwrite a saved relay URL with the Foundry pseudo-URL.
+  if (url !== FOUNDRY_RELAY) localStorage.setItem(RELAY_URL_KEY, url);
 }
 
 // --- presence (who else is connected) ---

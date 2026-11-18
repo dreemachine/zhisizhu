@@ -81,6 +81,16 @@ The relay server:
 
 It is still an ephemeral convenience service, not an authenticated public service. Use an unguessable tunnel URL and stop the relay/tunnel after the session.
 
+### Foundry VTT embed
+
+The `zhisizhu-ensemble` Foundry module (kept in a separate `dnd-vtt-tool` repository) bundles a copy of this app and plays it inside Foundry, with no relay or tunnel. `core.js` supports this through options read from `window.zhisizhuEmbedParams`, falling back to `location.search`:
+
+- `foundry=1` (only honored inside an iframe): `connectRelay('foundry')` uses a postMessage bridge instead of a WebSocket. Messages are the same JSON text as above, wrapped as `{zhisizhu: 'relay', message}`; the module forwards them over Foundry's game socket. The relay URL field is disabled and the connect button hidden.
+- `only=<card>` (`yueqin`, `erhu`, `dizi`, `bangu`, `cricket`): shows a single instrument card and hides the header, relay, looper and quartet controls. The module opens one window per instrument this way.
+- `volume=<0–1>`: an overall output scale applied to the master gain. The parent can change it later with `{zhisizhu: 'volume', value}`. The standalone site always runs at 1.
+
+The module routes incoming notes to one hidden frame only, so each remote note plays once regardless of how many instrument windows are open. Foundry serves `.html` as `text/plain`, so the module loads `index.html` through `srcdoc` with a `<base>` tag rather than an iframe `src`. After changing the app, re-run that repository's `sync-instruments.ps1`.
+
 ## Looper semantics
 
 The looper stores `{time, instrument, payload}` events.
